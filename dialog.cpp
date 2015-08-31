@@ -154,7 +154,9 @@ void Dialog::doTransaction()
 
     qDebug() << packet;
 
-    master.transaction(combo_port->currentData().toString(), spin_timeout->value(), packet.serialize());
+    master.transaction(combo_port->currentData().toString(),
+                       combo_speed->currentText().toInt(0, 10),
+                       spin_timeout->value(), packet.serialize());
 }
 
 void Dialog::processResponse(const QByteArray &rawPacket)

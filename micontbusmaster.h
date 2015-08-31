@@ -14,7 +14,7 @@ public:
     MicontBusMaster(QObject *parent = 0);
     ~MicontBusMaster();
 
-    void transaction(const QString &portName, int waitTimeout, const QByteArray &packet);
+    void transaction(const QString &portName, qint32 baudRate, qint32 waitTimeout, const QByteArray &packet);
     void run();
 
 signals:
@@ -24,8 +24,10 @@ signals:
 
 private:
     QString portName;
+    qint32  baudRate;
+    qint32  waitTimeout;
     QByteArray packet;
-    int waitTimeout;
+
     QMutex mutex;
     QWaitCondition cond;
     bool quit;

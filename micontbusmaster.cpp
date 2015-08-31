@@ -20,11 +20,12 @@ MicontBusMaster::~MicontBusMaster()
     wait();
 }
 
-void MicontBusMaster::transaction(const QString &portName, int waitTimeout, const QByteArray &packet)
+void MicontBusMaster::transaction(const QString &portName, qint32 baudRate, qint32 waitTimeout, const QByteArray &packet)
 {
     QMutexLocker locker(&mutex);
 
     this->portName = portName;
+    this->baudRate = baudRate;
     this->waitTimeout = waitTimeout;
     this->packet = packet;
 
@@ -39,12 +40,9 @@ void MicontBusMaster::run()
     bool currentPortNameChanged = false;
 
     mutex.lock();
-    QString currentPortName;
-    if (currentPortName != portName) {
-        currentPortName = portName;
-        currentPortNameChanged = true;
-    }
-
+    QString currentPortName = portName;
+    currentPortNameChanged = true;
+    qint32 currentBaudrate = baudRate;
     int currentWaitTimeout = waitTimeout;
     QByteArray currentRequest = packet;
     mutex.unlock();
@@ -55,7 +53,7 @@ void MicontBusMaster::run()
         if (currentPortNameChanged) {
             serial.close();
             serial.setPortName(currentPortName);
-            serial.setBaudRate(serial.Baud115200);
+            serial.setBaudRate(currentBaudrate);
 
             if (!serial.open(QIODevice::ReadWrite)) {
                 emit error(tr("Can't open %1, error code %2")
@@ -98,8 +96,9 @@ void MicontBusMaster::run()
 
         mutex.lock();
         cond.wait(&mutex);
-        if (currentPortName != portName) {
+        if (currentPortName != portName || currentBaudrate != baudRate) {
             currentPortName = portName;
+            currentBaudrate = baudRate;
             currentPortNameChanged = true;
         } else {
             currentPortNameChanged = false;
