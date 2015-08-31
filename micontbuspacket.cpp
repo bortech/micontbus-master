@@ -93,6 +93,7 @@ bool MicontBusPacket::parse(const QByteArray &rawPacket)
         return false;
 
     QDataStream s(rawPacket);
+    s.setByteOrder(QDataStream::LittleEndian);
     s >> m_id >> m_cmd >> m_addr;
     size -= 4;
 
@@ -161,7 +162,7 @@ QDebug operator<<(QDebug dbg, const MicontBusPacket &packet)
     dbg.nospace() << "MicontBusPacket(id: " << packet.id()
                   << ", cmd: " << QString("0x%1").arg(packet.cmd(), 2, 16, QLatin1Char('0'))
                   << ", addr: " << packet.addr() << " [" << QString("0x%1").arg(packet.addr(), 2, 16, QLatin1Char('0')) << "]"
-                  << ", size: " << packet.addr()
+                  << ", size: " << packet.size()
                   << ", data: " << packet.data().toHex()
                   << ")";
 
