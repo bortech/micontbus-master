@@ -17,6 +17,8 @@ class QTableWidget;
 
 QT_END_NAMESPACE
 
+class MicontBusPacket;
+
 class Dialog : public QDialog
 {
     Q_OBJECT
@@ -31,10 +33,11 @@ private slots:
     void processTimeout(const QString &s);
     void addrChanged(int newAddr);
     void hexAddrChanged();
+    void cmdChanged();
 
 private:
     void setControlsEnabled(bool enable);
-    void logPacket(const QByteArray &packet);
+    void logPacket(const MicontBusPacket &packet);
 
 private:
     // settings group

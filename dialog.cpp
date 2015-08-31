@@ -55,6 +55,9 @@ Dialog::Dialog(QWidget *parent)
     combo_cmd->addItem("0x01 GETSIZE", MicontBusPacket::CMD_GETSIZE);
     combo_cmd->addItem("0x02 GETBUF_B", MicontBusPacket::CMD_GETBUF_B);
     combo_cmd->addItem("0x04 PUTBUF_B", MicontBusPacket::CMD_PUTBUF_B);
+    connect(combo_cmd, SIGNAL(currentIndexChanged(int)),
+            this, SLOT(cmdChanged()));
+    cmdChanged();
 
     // addr range & default value
     spin_addr->setRange(0, 0xffff);
@@ -158,6 +161,8 @@ void Dialog::doTransaction()
     master.transaction(combo_port->currentData().toString(),
                        combo_speed->currentData().toInt(),
                        spin_timeout->value(), packet.serialize());
+
+    logPacket(packet);
 }
 
 void Dialog::processResponse(const QByteArray &rawPacket)
@@ -165,7 +170,6 @@ void Dialog::processResponse(const QByteArray &rawPacket)
     setControlsEnabled(true);
 
     label_status->setText(tr("Ready"));
-    logPacket(rawPacket);
 
     MicontBusPacket p;
     if (!p.parse(rawPacket)) {
@@ -173,6 +177,7 @@ void Dialog::processResponse(const QByteArray &rawPacket)
         return;
     }
 
+    logPacket(p);
     qDebug() << p;
 
     table_editor->clearContents();
@@ -203,22 +208,78 @@ void Dialog::hexAddrChanged()
     spin_addr->setValue(line_addr->text().toInt(0, 0));
 }
 
+void Dialog::cmdChanged()
+{
+    table_editor->clearContents();
+    table_editor->setRowCount(0);
+
+    switch (combo_cmd->currentData().toInt()) {
+        case MicontBusPacket::CMD_GETSIZE:
+            spin_size->setValue(0);
+            spin_size->setEnabled(false);
+            break;
+        case MicontBusPacket::CMD_GETBUF_B:
+            spin_size->setValue(4);
+            spin_size->setEnabled(true);
+            break;
+        case MicontBusPacket::CMD_PUTBUF_B:
+            spin_size->setValue(4);
+            spin_size->setEnabled(true);
+
+            table_editor->setRowCount(1);
+            table_editor->setItem(0, 0, new QTableWidgetItem(QString("0x%1").arg(spin_addr->value(), 4, 16, QLatin1Char('0'))));
+            table_editor->setItem(0, 1, new QTableWidgetItem(QString("0")));
+            break;
+    }
+}
+
 void Dialog::setControlsEnabled(bool enable)
 {
     push_query->setEnabled(enable);
 }
 
-void Dialog::logPacket(const QByteArray &packet)
+void Dialog::logPacket(const MicontBusPacket &packet)
 {
     QTreeWidgetItem *item = new QTreeWidgetItem;
     QString s;
+    QByteArray rawPacket = packet.serialize();
 
-    for (int i = 0; i < packet.size(); i++) {
-        s.append(packet.mid(i, 1).toHex());
+    for (int i = 0; i < rawPacket.size(); i++) {
+        s.append(rawPacket.mid(i, 1).toHex());
         s.append(' ');
     }
 
     item->setText(0, s);
+
+    QTreeWidgetItem *si_id = new QTreeWidgetItem;
+    si_id->setText(0, QString("id: %1").arg(packet.id()));
+    si_id->setData(0, Qt::UserRole, "id");
+    item->addChild(si_id);
+
+    QTreeWidgetItem *si_cmd = new QTreeWidgetItem;
+    si_cmd->setText(0, QString("cmd: %1").arg(packet.cmd()));
+    si_cmd->setData(0, Qt::UserRole, "cmd");
+    item->addChild(si_cmd);
+
+    QTreeWidgetItem *si_addr = new QTreeWidgetItem;
+    si_addr->setText(0, QString("addr: %1").arg(packet.addr()));
+    si_addr->setData(0, Qt::UserRole, "addr");
+    item->addChild(si_addr);
+
+    if (packet.size() != 0) {
+        QTreeWidgetItem *si_size = new QTreeWidgetItem;
+        si_size->setText(0, QString("size: %1").arg(packet.size()));
+        si_size->setData(0, Qt::UserRole, "size");
+        item->addChild(si_size);
+    }
+
+    if (!packet.data().isEmpty()) {
+        QTreeWidgetItem *si_data = new QTreeWidgetItem;
+        si_data->setText(0, QString("data: ") + packet.data().toHex());
+        si_data->setData(0, Qt::UserRole, "data");
+        item->addChild(si_data);
+    }
+
     tree_monitor->addTopLevelItem(item);
     tree_monitor->scrollToBottom();
 }
