@@ -3,16 +3,23 @@
 
 #include <QObject>
 
-#define CMD_GETSIZE     0x01
-#define CMD_GETBUF_B    0x02
-#define CMD_PUTBUF_B    0x04
-
-#define CMD_RESULT_OK   0x10
-
 class MicontBusPacket
-{
+{    
 public:
+
+    enum CmdCode {
+        CMD_GETSIZE = 0x01,
+        CMD_GETBUF_B = 0x02,
+        CMD_PUTBUF_B = 0x04
+    };
+
+    enum ResultCode {
+        CMD_RESULT_OK = 0x10,
+    };
+
     MicontBusPacket();
+//    MicontBusPacket(const MicontBusPacket &other);
+//    ~MicontBusPacket();
 
     // getters
     quint8 id();

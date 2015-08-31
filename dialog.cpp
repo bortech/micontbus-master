@@ -51,9 +51,9 @@ Dialog::Dialog(QWidget *parent)
     spin_id->setValue(33);
 
     // fill cmd combo
-    combo_cmd->addItem("0x01 GETSIZE", CMD_GETSIZE);
-    combo_cmd->addItem("0x02 GETBUF_B", CMD_GETBUF_B);
-    combo_cmd->addItem("0x04 PUTBUF_B", CMD_PUTBUF_B);
+    combo_cmd->addItem("0x01 GETSIZE", MicontBusPacket::CMD_GETSIZE);
+    combo_cmd->addItem("0x02 GETBUF_B", MicontBusPacket::CMD_GETBUF_B);
+    combo_cmd->addItem("0x04 PUTBUF_B", MicontBusPacket::CMD_PUTBUF_B);
 
     // addr range & default value
     spin_addr->setRange(0, 0xffff);
