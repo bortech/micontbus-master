@@ -133,11 +133,11 @@ Dialog::Dialog(QWidget *parent)
 
     connect(push_query, SIGNAL(clicked()),
             this, SLOT(doTransaction()));
-    connect(&thread, SIGNAL(response(QByteArray)),
+    connect(&master, SIGNAL(response(QByteArray)),
             this, SLOT(processResponse(QByteArray)));
-    connect(&thread, SIGNAL(error(QString)),
+    connect(&master, SIGNAL(error(QString)),
             this, SLOT(processError(QString)));
-    connect(&thread, SIGNAL(timeout(QString)),
+    connect(&master, SIGNAL(timeout(QString)),
             this, SLOT(processTimeout(QString)));
 }
 
@@ -154,7 +154,7 @@ void Dialog::doTransaction()
 
     qDebug() << packet;
 
-    thread.transaction(combo_port->currentData().toString(), spin_timeout->value(), packet);
+    master.transaction(combo_port->currentData().toString(), spin_timeout->value(), packet.serialize());
 }
 
 void Dialog::processResponse(const QByteArray &rawPacket)

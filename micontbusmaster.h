@@ -4,10 +4,7 @@
 #include <QThread>
 #include <QMutex>
 #include <QWaitCondition>
-
-#include "micontbuspacket.h"
-
-class MicontBusPacket;
+#include <QByteArray>
 
 class MicontBusMaster : public QThread
 {
@@ -17,7 +14,7 @@ public:
     MicontBusMaster(QObject *parent = 0);
     ~MicontBusMaster();
 
-    void transaction(const QString &portName, int waitTimeout, const MicontBusPacket &packet);
+    void transaction(const QString &portName, int waitTimeout, const QByteArray &packet);
     void run();
 
 signals:
@@ -27,7 +24,7 @@ signals:
 
 private:
     QString portName;
-    MicontBusPacket packet;
+    QByteArray packet;
     int waitTimeout;
     QMutex mutex;
     QWaitCondition cond;

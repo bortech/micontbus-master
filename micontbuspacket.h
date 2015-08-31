@@ -50,7 +50,7 @@ private:
     QByteArray m_data;
 };
 
-Q_DECLARE_METATYPE(MicontBusPacket);
+Q_DECLARE_METATYPE(MicontBusPacket)
 
 QDebug operator<<(QDebug dbg, const MicontBusPacket &packet);
 

@@ -59,7 +59,7 @@ private:
     // status label
     QLabel *label_status;
 
-    MicontBusMaster thread;
+    MicontBusMaster master;
 };
 
 #endif // DIALOG_H

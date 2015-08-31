@@ -1,5 +1,4 @@
 #include "micontbusmaster.h"
-#include "micontbuspacket.h"
 
 #include <QtSerialPort/QSerialPort>
 #include <QDataStream>
@@ -21,7 +20,7 @@ MicontBusMaster::~MicontBusMaster()
     wait();
 }
 
-void MicontBusMaster::transaction(const QString &portName, int waitTimeout, const MicontBusPacket &packet)
+void MicontBusMaster::transaction(const QString &portName, int waitTimeout, const QByteArray &packet)
 {
     QMutexLocker locker(&mutex);
 
@@ -47,7 +46,7 @@ void MicontBusMaster::run()
     }
 
     int currentWaitTimeout = waitTimeout;
-    MicontBusPacket currentRequest = packet;
+    QByteArray currentRequest = packet;
     mutex.unlock();
 
     QSerialPort serial;
@@ -65,13 +64,12 @@ void MicontBusMaster::run()
             }
         }
 
-        // write request                       
-        QByteArray p = currentRequest.serialize();
-        QDataStream s(&p, QIODevice::Append);
+        // write request
+        QDataStream s(&currentRequest, QIODevice::Append);
         s.setByteOrder(QDataStream::LittleEndian);
-        s << crc16(p);
-        qDebug() << "<<" << p.toHex();
-        serial.write(p);
+        s << crc16(currentRequest);
+        qDebug() << "<<" << currentRequest.toHex();
+        serial.write(currentRequest);
 
         if (serial.waitForBytesWritten(waitTimeout)) {
             // read response
