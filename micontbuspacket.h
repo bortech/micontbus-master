@@ -1,7 +1,9 @@
 #ifndef MICONTBUSPACKET_H
 #define MICONTBUSPACKET_H
 
-#include <QObject>
+#include <QDebug>
+#include <QMetaType>
+#include <QByteArray>
 
 class MicontBusPacket
 {    
@@ -18,15 +20,15 @@ public:
     };
 
     MicontBusPacket();
-//    MicontBusPacket(const MicontBusPacket &other);
-//    ~MicontBusPacket();
+    MicontBusPacket(const MicontBusPacket &other);
+    ~MicontBusPacket();
 
     // getters
-    quint8 id();
-    quint8 cmd();
-    quint16 addr();
-    quint16 size();
-    QByteArray data();
+    quint8 id() const;
+    quint8 cmd() const;
+    quint16 addr() const;
+    quint16 size() const;
+    QByteArray data() const;
 
     // setters
     void setId(quint8 id);
@@ -39,6 +41,7 @@ public:
 
     bool parse(const QByteArray &rawPacket);
     QByteArray serialize() const;
+
 private:
     quint8 m_id;
     quint8 m_cmd;
@@ -46,5 +49,9 @@ private:
     quint16 m_size;
     QByteArray m_data;
 };
+
+Q_DECLARE_METATYPE(MicontBusPacket);
+
+QDebug operator<<(QDebug dbg, const MicontBusPacket &packet);
 
 #endif // MICONTBUSPACKET_H

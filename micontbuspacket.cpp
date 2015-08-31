@@ -6,27 +6,40 @@ MicontBusPacket::MicontBusPacket()
 {
 }
 
-quint8 MicontBusPacket::id()
+MicontBusPacket::MicontBusPacket(const MicontBusPacket &other)
+{
+    m_id = other.m_id;
+    m_cmd = other.m_cmd;
+    m_addr = other.m_addr;
+    m_size = other.m_size;
+    m_data = other.m_data;
+}
+
+MicontBusPacket::~MicontBusPacket()
+{
+}
+
+quint8 MicontBusPacket::id() const
 {
     return m_id;
 }
 
-quint8 MicontBusPacket::cmd()
+quint8 MicontBusPacket::cmd() const
 {
     return m_cmd;
 }
 
-quint16 MicontBusPacket::addr()
+quint16 MicontBusPacket::addr() const
 {
     return m_addr;
 }
 
-quint16 MicontBusPacket::size()
+quint16 MicontBusPacket::size() const
 {
     return m_size;
 }
 
-QByteArray MicontBusPacket::data()
+QByteArray MicontBusPacket::data() const
 {
     return m_data;
 }
@@ -143,3 +156,14 @@ QByteArray MicontBusPacket::serialize() const
     return packet;
 }
 
+QDebug operator<<(QDebug dbg, const MicontBusPacket &packet)
+{
+    dbg.nospace() << "MicontBusPacket(id: " << packet.id()
+                  << ", cmd: " << QString("0x%1").arg(packet.cmd(), 2, 16, QLatin1Char('0'))
+                  << ", addr: " << packet.addr() << " [" << QString("0x%1").arg(packet.addr(), 2, 16, QLatin1Char('0')) << "]"
+                  << ", size: " << packet.addr()
+                  << ", data: " << packet.data().toHex()
+                  << ")";
+
+    return dbg.maybeSpace();
+}

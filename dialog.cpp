@@ -151,6 +151,9 @@ void Dialog::doTransaction()
     packet.setCmd(combo_cmd->currentData().toInt());
     packet.setAddr(spin_addr->value());
     packet.setSize(spin_size->value());
+
+    qDebug() << packet;
+
     thread.transaction(combo_port->currentData().toString(), spin_timeout->value(), packet);
 }
 
@@ -166,6 +169,8 @@ void Dialog::processResponse(const QByteArray &rawPacket)
         processError(tr("packet parse error"));
         return;
     }
+
+    qDebug() << p;
 
     table_editor->setRowCount(1);
     table_editor->setItem(0, 0, new QTableWidgetItem(QString("0x%1").arg(p.addr(), 4, 16, QLatin1Char('0'))));
