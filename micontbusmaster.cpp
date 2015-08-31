@@ -56,13 +56,12 @@ void MicontBusMaster::run()
             serial.setBaudRate(currentBaudrate);
 
             if (!serial.open(QIODevice::ReadWrite)) {
-                emit error(tr("Can't open %1, error code %2")
+                emit error(tr("can't open %1, error code %2")
                            .arg(portName).arg(serial.error()));
                 return;
             }
         }
 
-        // write request
         QDataStream s(&currentRequest, QIODevice::Append);
         s.setByteOrder(QDataStream::LittleEndian);
         s << crc16(currentRequest);
@@ -70,7 +69,6 @@ void MicontBusMaster::run()
         serial.write(currentRequest);
 
         if (serial.waitForBytesWritten(waitTimeout)) {
-            // read response
             if (serial.waitForReadyRead(currentWaitTimeout)) {
                 QByteArray responseData = serial.readAll();
                 while (serial.waitForReadyRead(10))
@@ -84,7 +82,7 @@ void MicontBusMaster::run()
                 if (crc == crc16(responseData)) {
                     emit this->response(responseData);
                 } else {
-                    emit error(tr("CRC Mismatch"));
+                    emit error(tr("crc mismatch"));
                 }
             } else {
                 emit timeout(tr("read timeout"));

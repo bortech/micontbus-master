@@ -37,8 +37,9 @@ Dialog::Dialog(QWidget *parent)
 
     // fill speed combo with available baudrates
     foreach (qint32 baudrate, QSerialPortInfo::standardBaudRates()) {
-        if (baudrate >= 9600)
-            combo_speed->addItem(QString::number(baudrate));
+        if (baudrate >= 9600) {
+            combo_speed->addItem(QString::number(baudrate), baudrate);
+        }
     }
     combo_speed->setCurrentIndex(combo_speed->findText("115200"));
 
@@ -48,7 +49,7 @@ Dialog::Dialog(QWidget *parent)
 
     // id range & default value
     spin_id->setRange(0, 255);
-    spin_id->setValue(33);
+    spin_id->setValue(2);
 
     // fill cmd combo
     combo_cmd->addItem("0x01 GETSIZE", MicontBusPacket::CMD_GETSIZE);
@@ -86,9 +87,9 @@ Dialog::Dialog(QWidget *parent)
     QGroupBox *group_settings = new QGroupBox(tr("Settings:"));
     QGridLayout *grid_settings = new QGridLayout;
     grid_settings->addWidget(new QLabel(tr("Port:")), 0, 0);
-    grid_settings->addWidget(combo_port, 0, 1);
-    grid_settings->addWidget(new QLabel(tr("Speed:")), 0, 2);
-    grid_settings->addWidget(combo_speed, 0, 3);
+    grid_settings->addWidget(combo_port, 0, 1, 1, 3);
+    grid_settings->addWidget(new QLabel(tr("Speed:")), 1, 0);
+    grid_settings->addWidget(combo_speed, 1, 1);
     grid_settings->addWidget(new QLabel(tr("Timeout, ms:")), 1, 2);
     grid_settings->addWidget(spin_timeout, 1, 3);
     group_settings->setLayout(grid_settings);
@@ -155,7 +156,7 @@ void Dialog::doTransaction()
     qDebug() << packet;
 
     master.transaction(combo_port->currentData().toString(),
-                       combo_speed->currentText().toInt(0, 10),
+                       combo_speed->currentData().toInt(),
                        spin_timeout->value(), packet.serialize());
 }
 
@@ -174,6 +175,7 @@ void Dialog::processResponse(const QByteArray &rawPacket)
 
     qDebug() << p;
 
+    table_editor->clearContents();
     table_editor->setRowCount(1);
     table_editor->setItem(0, 0, new QTableWidgetItem(QString("0x%1").arg(p.addr(), 4, 16, QLatin1Char('0'))));
     table_editor->setItem(0, 1, new QTableWidgetItem(QString(p.data().toHex())));
