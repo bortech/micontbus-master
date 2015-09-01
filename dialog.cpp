@@ -75,7 +75,7 @@ Dialog::Dialog(QWidget *parent)
 
     // size range & default value
     spin_size->setRange(0, 0xffff);
-    spin_size->setValue(4);   
+    spin_size->setValue(0);
 
     // editor setup
     table_editor->setSelectionMode(QAbstractItemView::NoSelection);
@@ -85,6 +85,8 @@ Dialog::Dialog(QWidget *parent)
 
     // monitor setup
     tree_monitor->setHeaderHidden(true);
+    connect(tree_monitor, SIGNAL(currentItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)),
+            this, SLOT(monitorItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)));
 
     // settings group
     QGroupBox *group_settings = new QGroupBox(tr("Settings:"));
@@ -156,6 +158,14 @@ void Dialog::doTransaction()
     packet.setAddr(spin_addr->value());
     packet.setSize(spin_size->value());
 
+    if (packet.cmd() == MicontBusPacket::CMD_PUTBUF_B) {
+        bool ok;
+        qint32 iData = table_editor->item(0, 1)->text().toInt(&ok, 10);
+        if (ok) {
+            packet.setData(iData);
+        }
+    }
+
     qDebug() << packet;
 
     master.transaction(combo_port->currentData().toString(),
@@ -183,7 +193,7 @@ void Dialog::processResponse(const QByteArray &rawPacket)
     table_editor->clearContents();
     table_editor->setRowCount(1);
     table_editor->setItem(0, 0, new QTableWidgetItem(QString("0x%1").arg(p.addr(), 4, 16, QLatin1Char('0'))));
-    table_editor->setItem(0, 1, new QTableWidgetItem(QString(p.data().toHex())));
+    table_editor->setItem(0, 1, new QTableWidgetItem(makeByteSequence(p.data())));
 }
 
 void Dialog::processError(const QString &s)
@@ -233,53 +243,115 @@ void Dialog::cmdChanged()
     }
 }
 
+void Dialog::monitorItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous)
+{
+    if (current) {
+        if (current->type() == QTreeWidgetItem::UserType + 1) {
+            QTreeWidgetItem *parentItem = current->parent();
+            QLabel *l = qobject_cast<QLabel *>(tree_monitor->itemWidget(current->parent(), 0));
+
+            QPoint p = current->data(0, Qt::UserRole).toPoint();
+            l->setText(makeByteSequence(parentItem->data(0, Qt::UserRole).toByteArray(), p.x(), p.y()));
+        }
+    }
+
+    if (previous) {
+        if (previous->type() == QTreeWidgetItem::UserType + 1 && previous->parent() != current->parent()) {
+            QLabel *l = qobject_cast<QLabel *>(tree_monitor->itemWidget(previous->parent(), 0));
+            l->setText(makeByteSequence(previous->parent()->data(0, Qt::UserRole).toByteArray()));
+        }
+    }
+}
+
 void Dialog::setControlsEnabled(bool enable)
 {
     push_query->setEnabled(enable);
 }
 
+QString Dialog::makeByteSequence(const QByteArray &data, int start, int length)
+{
+    QString s;
+
+    for (int i = 0; i < data.size(); i++) {
+        if (length > 0 && i == start)
+            s.append("<b>");
+        s.append(data.mid(i, 1).toHex());
+        s.append(' ');
+        if (length > 0 && i == start + length - 1)
+            s.append("</b>");
+    }
+
+    return s;
+}
+
+QString Dialog::cmdToString(quint8 cmd)
+{
+    QString s;
+
+    switch (cmd & 0x0f) {
+    case MicontBusPacket::CMD_GETSIZE:
+        s.append(tr("GETSIZE"));
+        break;
+    case MicontBusPacket::CMD_GETBUF_B:
+        s.append(tr("GETBUF_B"));
+        break;
+    case MicontBusPacket::CMD_PUTBUF_B:
+        s.append(tr("PUTBUF_B"));
+        break;
+    }
+
+    switch (cmd & 0xf0) {
+    case MicontBusPacket::CMD_RESULT_OK:
+        s.append(" + OK");
+        break;
+    case 0:
+        break;
+    default:
+        s.append(" + ERROR");
+        break;
+    }
+
+    return s;
+}
+
 void Dialog::logPacket(const MicontBusPacket &packet)
 {
     QTreeWidgetItem *item = new QTreeWidgetItem;
-    QString s;
-    QByteArray rawPacket = packet.serialize();
+    QTreeWidgetItem *subitem;
 
-    for (int i = 0; i < rawPacket.size(); i++) {
-        s.append(rawPacket.mid(i, 1).toHex());
-        s.append(' ');
-    }
+    subitem = new QTreeWidgetItem(QTreeWidgetItem::UserType + 1);
+    subitem->setData(0, Qt::UserRole, QPoint(0, 1));
+    subitem->setText(0, QString("%1: %2").arg(tr("id")).arg(packet.id()));
+    item->addChild(subitem);
 
-    item->setText(0, s);
+    subitem = new QTreeWidgetItem(QTreeWidgetItem::UserType + 1);
+    subitem->setData(0, Qt::UserRole, QPoint(1, 1));
+    subitem->setText(0, QString("%1: %2").arg(tr("cmd")).arg(cmdToString(packet.cmd())));
+    item->addChild(subitem);
 
-    QTreeWidgetItem *si_id = new QTreeWidgetItem;
-    si_id->setText(0, QString("id: %1").arg(packet.id()));
-    si_id->setData(0, Qt::UserRole, "id");
-    item->addChild(si_id);
-
-    QTreeWidgetItem *si_cmd = new QTreeWidgetItem;
-    si_cmd->setText(0, QString("cmd: %1").arg(packet.cmd()));
-    si_cmd->setData(0, Qt::UserRole, "cmd");
-    item->addChild(si_cmd);
-
-    QTreeWidgetItem *si_addr = new QTreeWidgetItem;
-    si_addr->setText(0, QString("addr: %1").arg(packet.addr()));
-    si_addr->setData(0, Qt::UserRole, "addr");
-    item->addChild(si_addr);
+    subitem = new QTreeWidgetItem(QTreeWidgetItem::UserType + 1);
+    subitem->setData(0, Qt::UserRole, QPoint(2, 2));
+    subitem->setText(0, QString("%1: %2 (0x%3)").arg(tr("addr")).arg(packet.addr()).arg(packet.addr(), 4, 16, QLatin1Char('0')));
+    item->addChild(subitem);
 
     if (packet.size() != 0) {
-        QTreeWidgetItem *si_size = new QTreeWidgetItem;
-        si_size->setText(0, QString("size: %1").arg(packet.size()));
-        si_size->setData(0, Qt::UserRole, "size");
-        item->addChild(si_size);
+        subitem = new QTreeWidgetItem(QTreeWidgetItem::UserType + 1);
+        subitem->setData(0, Qt::UserRole, QPoint(4, 2));
+        subitem->setText(0, QString("%1: %2").arg(tr("size")).arg(packet.size()));
+        item->addChild(subitem);
     }
 
     if (!packet.data().isEmpty()) {
-        QTreeWidgetItem *si_data = new QTreeWidgetItem;
-        si_data->setText(0, QString("data: ") + packet.data().toHex());
-        si_data->setData(0, Qt::UserRole, "data");
-        item->addChild(si_data);
+        subitem = new QTreeWidgetItem(QTreeWidgetItem::UserType + 1);
+        subitem->setData(0, Qt::UserRole, QPoint((packet.size()) ? 6 : 4, packet.data().length()));
+        subitem->setText(0, QString("%1: %2").arg(tr("data")).arg(makeByteSequence(packet.data())));
+        item->addChild(subitem);
     }
 
+    QByteArray rawPacket = packet.serialize();
+    item->setData(0, Qt::UserRole, rawPacket);
+
     tree_monitor->addTopLevelItem(item);
+    tree_monitor->setItemWidget(item, 0, new QLabel(makeByteSequence(rawPacket)));
     tree_monitor->scrollToBottom();
 }

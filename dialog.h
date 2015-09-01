@@ -18,6 +18,7 @@ class QTableWidget;
 QT_END_NAMESPACE
 
 class MicontBusPacket;
+class QTreeWidgetItem;
 
 class Dialog : public QDialog
 {
@@ -34,9 +35,12 @@ private slots:
     void addrChanged(int newAddr);
     void hexAddrChanged();
     void cmdChanged();
+    void monitorItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous);
 
 private:
     void setControlsEnabled(bool enable);
+    QString makeByteSequence(const QByteArray &data, int start = 0, int length = 0);
+    QString cmdToString(quint8 cmd);
     void logPacket(const MicontBusPacket &packet);
 
 private:
