@@ -4,6 +4,10 @@
 
 MicontBusPacket::MicontBusPacket()
 {
+    m_id = 0;
+    m_cmd = 0;
+    m_addr = 0;
+    m_size = 0;
 }
 
 MicontBusPacket::MicontBusPacket(const MicontBusPacket &other)
@@ -148,10 +152,12 @@ QByteArray MicontBusPacket::serialize() const
     s << m_cmd;
     s << m_addr;
 
-    if (m_cmd == CMD_GETBUF_B || m_cmd == CMD_PUTBUF_B)
+    if ((m_cmd & 0x0f) == CMD_GETBUF_B || (m_cmd & 0x0f) == CMD_PUTBUF_B)
         s << m_size;
 
-    if (m_cmd == CMD_PUTBUF_B)
+    if (m_cmd == CMD_PUTBUF_B ||
+        m_cmd == (CMD_GETBUF_B | CMD_RESULT_OK) ||
+        m_cmd == (CMD_GETSIZE | CMD_RESULT_OK))
         packet.append(m_data);
 
     return packet;
