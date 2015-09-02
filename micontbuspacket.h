@@ -42,6 +42,7 @@ public:
     quint16 addr() const;
     quint16 size() const;
     QByteArray data() const;
+    QVector<quint32> variables() const;
 
     // setters
     void setId(quint8 id);

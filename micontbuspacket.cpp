@@ -1,6 +1,7 @@
 #include "micontbuspacket.h"
 
 #include <QDataStream>
+#include <QVector>
 
 MicontBusPacket::MicontBusPacket()
 {
@@ -46,6 +47,26 @@ quint16 MicontBusPacket::size() const
 QByteArray MicontBusPacket::data() const
 {
     return m_data;
+}
+
+QVector<quint32> MicontBusPacket::variables() const
+{
+    if (m_data.size() % sizeof(quint32) != 0)
+        return QVector<quint32>(0);
+
+    int count = m_data.size() / sizeof(quint32);
+    QVector<quint32> v(count);
+
+    QDataStream s(m_data);
+    s.setByteOrder(QDataStream::LittleEndian);
+
+    for (int i = 0; i < count; i++) {
+        quint32 var;
+        s >> var;
+        v[i] = var;
+    }
+
+    return v;
 }
 
 void MicontBusPacket::setId(quint8 id)
