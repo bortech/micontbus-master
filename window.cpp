@@ -26,6 +26,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent)
   , line_addr(new QLineEdit("0x0000"))
   , spin_addr(new QSpinBox())
   , spin_size(new QSpinBox())
+  , combo_type(new QComboBox)
   , push_query(new QPushButton(tr("Query")))
   , table_editor(new QTableWidget())
   , tree_monitor(new QTreeWidget())
@@ -34,6 +35,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent)
     // fill port combo with available serial ports
     foreach (const QSerialPortInfo &info, QSerialPortInfo::availablePorts())
         combo_port->addItem(QString("%1 %2").arg(info.portName()).arg(info.description()), info.portName());
+    combo_port->setCurrentIndex(combo_port->findData("COM4"));
 
     // fill speed combo with available baudrates
     foreach (qint32 baudrate, QSerialPortInfo::standardBaudRates()) {
@@ -52,12 +54,11 @@ Window::Window(QWidget *parent) : QMainWindow(parent)
     spin_id->setValue(2);
 
     // fill cmd combo
-    combo_cmd->addItem("0x01 GETSIZE", MicontBusPacket::CMD_GETSIZE);
-    combo_cmd->addItem("0x02 GETBUF_B", MicontBusPacket::CMD_GETBUF_B);
-    combo_cmd->addItem("0x04 PUTBUF_B", MicontBusPacket::CMD_PUTBUF_B);
+    combo_cmd->addItem(cmdToString(MicontBusPacket::CMD_GETSIZE), MicontBusPacket::CMD_GETSIZE);
+    combo_cmd->addItem(cmdToString(MicontBusPacket::CMD_GETBUF_B), MicontBusPacket::CMD_GETBUF_B);
+    combo_cmd->addItem(cmdToString(MicontBusPacket::CMD_PUTBUF_B), MicontBusPacket::CMD_PUTBUF_B);
     connect(combo_cmd, SIGNAL(currentIndexChanged(int)),
             this, SLOT(cmdChanged()));
-    cmdChanged();
 
     // addr range & default value
     spin_addr->setRange(0, 0xffff);
@@ -73,6 +74,11 @@ Window::Window(QWidget *parent) : QMainWindow(parent)
     connect(line_addr, SIGNAL(editingFinished()),
             this, SLOT(hexAddrChanged()));
 
+    // fill data type combo
+    combo_type->addItem(tr("Variables"), DataVariables);
+    combo_type->addItem(tr("Raw Bytes"), DataRawBytes);
+    combo_type->addItem(tr("Tags"), DataTags);
+
     // size range & default value
     spin_size->setRange(0, 0xffff);
     spin_size->setValue(0);
@@ -81,7 +87,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent)
     table_editor->setSelectionMode(QAbstractItemView::NoSelection);
     table_editor->verticalHeader()->setVisible(false);
     table_editor->setColumnCount(2);
-    table_editor->setHorizontalHeaderLabels(QStringList() << tr("addr") << tr("value"));
+    table_editor->setHorizontalHeaderLabels(QStringList() << tr("addr") << tr("data"));
 
     // monitor setup
     tree_monitor->setHeaderHidden(true);
@@ -107,15 +113,31 @@ Window::Window(QWidget *parent) : QMainWindow(parent)
     QGridLayout *grid_query = new QGridLayout;
     grid_query->addWidget(new QLabel(tr("Id:")), 0, 0);
     grid_query->addWidget(spin_id, 0, 1);
-    grid_query->addWidget(new QLabel(tr("Cmd:")), 0, 3);
-    grid_query->addWidget(combo_cmd, 0, 4);
-    grid_query->addWidget(new QLabel(tr("Addr:")), 1, 0);
-    grid_query->addWidget(spin_addr, 1, 1);
-    grid_query->addWidget(line_addr, 1, 2);
-    grid_query->addWidget(new QLabel(tr("Size:")), 1, 3);
-    grid_query->addWidget(spin_size, 1, 4);
-    grid_query->addWidget(push_query, 0, 5, 2, 1);
+    grid_query->addWidget(new QLabel(tr("Cmd:")), 1, 0);
+    grid_query->addWidget(combo_cmd, 1, 1, 1, 2);
+    grid_query->addWidget(new QLabel(tr("Addr:")), 2, 0);
+    grid_query->addWidget(spin_addr, 2, 1);
+    grid_query->addWidget(line_addr, 2, 2);
+
+    // data widgets block
+    dataWidgets << new QLabel(tr("Data:"));
+    grid_query->addWidget(dataWidgets.last(), 3, 0);
+    dataWidgets << combo_type;
+    grid_query->addWidget(combo_type, 3, 1, 1, 2);
+    dataWidgets << new QLabel(tr("Count:"));
+    grid_query->addWidget(dataWidgets.last(), 3, 3);
+    dataWidgets << spin_size;
+    grid_query->addWidget(spin_size, 3, 4);
+
+    grid_query->setColumnStretch(5, 1);
     group_query->setLayout(grid_query);
+
+    // transaction group
+    QGroupBox *group_transaction = new QGroupBox(tr("Transaction:"));
+    QGridLayout *grid_transaction = new QGridLayout;
+    grid_transaction->addWidget(push_query, 0, 0);
+    grid_transaction->setColumnStretch(1, 1);
+    group_transaction->setLayout(grid_transaction);
 
     // data editor group
     QGroupBox *group_data = new QGroupBox(tr("Data editor:"));
@@ -133,9 +155,11 @@ Window::Window(QWidget *parent) : QMainWindow(parent)
     QGridLayout *grid_main = new QGridLayout;
     grid_main->addWidget(group_settings, 0, 0);
     grid_main->addWidget(group_query, 1, 0);
-    grid_main->addWidget(group_data, 2, 0);
-    grid_main->addWidget(group_monitor, 0, 1, 3, 1);
-    grid_main->addWidget(label_status, 3, 0);
+    grid_main->addWidget(group_transaction, 2, 0);
+    grid_main->addWidget(group_data, 3, 0);
+    grid_main->addWidget(group_monitor, 0, 1, 4, 1);
+    grid_main->addWidget(label_status, 4, 0);
+    grid_main->setColumnStretch(1, 1);
 
     QWidget *w = new QWidget(this);
     w->setLayout(grid_main);
@@ -151,6 +175,8 @@ Window::Window(QWidget *parent) : QMainWindow(parent)
             this, SLOT(processError(QString)));
     connect(&master, SIGNAL(timeout(QString)),
             this, SLOT(processTimeout(QString)));
+
+    cmdChanged();
 }
 
 void Window::doTransaction()
@@ -172,7 +198,9 @@ void Window::doTransaction()
         }
     }
 
+#ifdef QT_DEBUG
     qDebug() << packet;
+#endif
 
     master.transaction(combo_port->currentData().toString(),
                        combo_speed->currentData().toInt(),
@@ -185,8 +213,6 @@ void Window::processResponse(const QByteArray &rawPacket)
 {
     setControlsEnabled(true);
 
-    label_status->setText(tr("Ready"));
-
     MicontBusPacket p;
     if (!p.parse(rawPacket)) {
         processError(tr("packet parse error"));
@@ -194,12 +220,29 @@ void Window::processResponse(const QByteArray &rawPacket)
     }
 
     logPacket(p);
-    qDebug() << p;
 
-    table_editor->clearContents();
-    table_editor->setRowCount(1);
-    table_editor->setItem(0, 0, new QTableWidgetItem(QString("0x%1").arg(p.addr(), 4, 16, QLatin1Char('0'))));
-    table_editor->setItem(0, 1, new QTableWidgetItem(bufferToString(p.data())));
+#ifdef QT_DEBUG
+    qDebug() << p;
+#endif
+
+    if (!p.data().isEmpty()) {
+        table_editor->clearContents();
+
+        if (combo_type->currentData().toInt() == DataRawBytes) {
+            table_editor->setRowCount(1);
+            table_editor->setItem(0, 0, new QTableWidgetItem(QString("0x%1").arg(p.addr(), 4, 16, QLatin1Char('0'))));
+            table_editor->setItem(0, 1, new QTableWidgetItem(bufferToString(p.data())));
+        } else if (combo_type->currentData().toInt() == DataVariables) {
+            QVector<quint32> vars = p.variables();
+            table_editor->setRowCount(vars.count());
+            for (int i = 0; i < vars.count(); i++) {
+                table_editor->setItem(i, 0, new QTableWidgetItem(QString("0x%1").arg(p.addr() + i, 4, 16, QLatin1Char('0'))));
+                table_editor->setItem(i, 1, new QTableWidgetItem(QString("%1").arg(vars[i])));
+            }
+        }
+    }
+
+    label_status->setText(tr("Ready"));
 }
 
 void Window::processError(const QString &s)
@@ -232,16 +275,15 @@ void Window::cmdChanged()
     switch (combo_cmd->currentData().toInt()) {
         case MicontBusPacket::CMD_GETSIZE:
             spin_size->setValue(0);
-            spin_size->setEnabled(false);
+            toggleWidgets(dataWidgets, false);
             break;
         case MicontBusPacket::CMD_GETBUF_B:
-            spin_size->setValue(4);
-            spin_size->setEnabled(true);
+            spin_size->setValue(1);
+            toggleWidgets(dataWidgets, true);
             break;
         case MicontBusPacket::CMD_PUTBUF_B:
-            spin_size->setValue(4);
-            spin_size->setEnabled(true);
-
+            spin_size->setValue(1);
+            toggleWidgets(dataWidgets, true);
             table_editor->setRowCount(1);
             table_editor->setItem(0, 0, new QTableWidgetItem(QString("0x%1").arg(spin_addr->value(), 4, 16, QLatin1Char('0'))));
             table_editor->setItem(0, 1, new QTableWidgetItem(QString("0")));
@@ -279,6 +321,13 @@ void Window::monitorContextMenu(const QPoint &)
 void Window::monitorClear()
 {
     tree_monitor->clear();
+}
+
+void Window::toggleWidgets(const QList<QWidget *> &widgets, bool show)
+{
+    foreach (QWidget *w, widgets) {
+        w->setVisible(show);
+    }
 }
 
 void Window::setControlsEnabled(bool enable)
