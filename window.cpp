@@ -1,4 +1,4 @@
-#include "dialog.h"
+#include "window.h"
 #include "micontbuspacket.h"
 
 #include <QLabel>
@@ -11,25 +11,25 @@
 #include <QTreeWidget>
 #include <QTableWidget>
 #include <QHeaderView>
+#include <QMenu>
 
 #include <QtSerialPort/QSerialPortInfo>
 
 QT_USE_NAMESPACE
 
-Dialog::Dialog(QWidget *parent)
-    : QDialog(parent)
-    , combo_port(new QComboBox())
-    , combo_speed(new QComboBox())
-    , spin_timeout(new QSpinBox())
-    , spin_id(new QSpinBox())
-    , combo_cmd(new QComboBox())
-    , line_addr(new QLineEdit("0x0000"))
-    , spin_addr(new QSpinBox())
-    , spin_size(new QSpinBox())
-    , push_query(new QPushButton(tr("Query")))
-    , table_editor(new QTableWidget())
-    , tree_monitor(new QTreeWidget())
-    , label_status(new QLabel(tr("Ready")))    
+Window::Window(QWidget *parent) : QMainWindow(parent)
+  , combo_port(new QComboBox())
+  , combo_speed(new QComboBox())
+  , spin_timeout(new QSpinBox())
+  , spin_id(new QSpinBox())
+  , combo_cmd(new QComboBox())
+  , line_addr(new QLineEdit("0x0000"))
+  , spin_addr(new QSpinBox())
+  , spin_size(new QSpinBox())
+  , push_query(new QPushButton(tr("Query")))
+  , table_editor(new QTableWidget())
+  , tree_monitor(new QTreeWidget())
+  , label_status(new QLabel(tr("Ready")))
 {
     // fill port combo with available serial ports
     foreach (const QSerialPortInfo &info, QSerialPortInfo::availablePorts())
@@ -85,6 +85,9 @@ Dialog::Dialog(QWidget *parent)
 
     // monitor setup
     tree_monitor->setHeaderHidden(true);
+    tree_monitor->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(tree_monitor, SIGNAL(customContextMenuRequested(QPoint)),
+            this, SLOT(monitorContextMenu(QPoint)));
     connect(tree_monitor, SIGNAL(currentItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)),
             this, SLOT(monitorItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)));
 
@@ -133,9 +136,12 @@ Dialog::Dialog(QWidget *parent)
     grid_main->addWidget(group_data, 2, 0);
     grid_main->addWidget(group_monitor, 0, 1, 3, 1);
     grid_main->addWidget(label_status, 3, 0);
-    setLayout(grid_main);
 
+    QWidget *w = new QWidget(this);
+    w->setLayout(grid_main);
+    setCentralWidget(w);
     setWindowTitle(tr("MicontBUS RTU Master"));
+    setWindowIcon(QIcon("icons/network.svg"));
 
     connect(push_query, SIGNAL(clicked()),
             this, SLOT(doTransaction()));
@@ -147,7 +153,7 @@ Dialog::Dialog(QWidget *parent)
             this, SLOT(processTimeout(QString)));
 }
 
-void Dialog::doTransaction()
+void Window::doTransaction()
 {
     setControlsEnabled(false);
     label_status->setText(tr("Opening port %1...").arg(combo_port->currentData().toString()));
@@ -175,7 +181,7 @@ void Dialog::doTransaction()
     logPacket(packet);
 }
 
-void Dialog::processResponse(const QByteArray &rawPacket)
+void Window::processResponse(const QByteArray &rawPacket)
 {
     setControlsEnabled(true);
 
@@ -193,32 +199,32 @@ void Dialog::processResponse(const QByteArray &rawPacket)
     table_editor->clearContents();
     table_editor->setRowCount(1);
     table_editor->setItem(0, 0, new QTableWidgetItem(QString("0x%1").arg(p.addr(), 4, 16, QLatin1Char('0'))));
-    table_editor->setItem(0, 1, new QTableWidgetItem(makeByteSequence(p.data())));
+    table_editor->setItem(0, 1, new QTableWidgetItem(bufferToString(p.data())));
 }
 
-void Dialog::processError(const QString &s)
+void Window::processError(const QString &s)
 {
     setControlsEnabled(true);
     label_status->setText(tr("Error (%1)").arg(s));
 }
 
-void Dialog::processTimeout(const QString &s)
+void Window::processTimeout(const QString &s)
 {
     setControlsEnabled(true);
     label_status->setText(tr("Error (%1)").arg(s));
 }
 
-void Dialog::addrChanged(int newAddr)
+void Window::addrChanged(int newAddr)
 {
     line_addr->setText(QString("0x%1").arg(newAddr, 4, 16, QLatin1Char('0')));
 }
 
-void Dialog::hexAddrChanged()
+void Window::hexAddrChanged()
 {
     spin_addr->setValue(line_addr->text().toInt(0, 0));
 }
 
-void Dialog::cmdChanged()
+void Window::cmdChanged()
 {
     table_editor->clearContents();
     table_editor->setRowCount(0);
@@ -243,7 +249,7 @@ void Dialog::cmdChanged()
     }
 }
 
-void Dialog::monitorItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous)
+void Window::monitorItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous)
 {
     if (current) {
         if (current->type() == QTreeWidgetItem::UserType + 1) {
@@ -251,24 +257,36 @@ void Dialog::monitorItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previ
             QLabel *l = qobject_cast<QLabel *>(tree_monitor->itemWidget(current->parent(), 0));
 
             QPoint p = current->data(0, Qt::UserRole).toPoint();
-            l->setText(makeByteSequence(parentItem->data(0, Qt::UserRole).toByteArray(), p.x(), p.y()));
+            l->setText(bufferToString(parentItem->data(0, Qt::UserRole).toByteArray(), p.x(), p.y()));
         }
     }
 
     if (previous) {
         if (previous->type() == QTreeWidgetItem::UserType + 1 && previous->parent() != current->parent()) {
             QLabel *l = qobject_cast<QLabel *>(tree_monitor->itemWidget(previous->parent(), 0));
-            l->setText(makeByteSequence(previous->parent()->data(0, Qt::UserRole).toByteArray()));
+            l->setText(bufferToString(previous->parent()->data(0, Qt::UserRole).toByteArray()));
         }
     }
 }
 
-void Dialog::setControlsEnabled(bool enable)
+void Window::monitorContextMenu(const QPoint &)
+{
+    QMenu *menu = new QMenu;
+    menu->addAction(tr("Clear"), this, SLOT(monitorClear()));
+    menu->exec(QCursor::pos());
+}
+
+void Window::monitorClear()
+{
+    tree_monitor->clear();
+}
+
+void Window::setControlsEnabled(bool enable)
 {
     push_query->setEnabled(enable);
 }
 
-QString Dialog::makeByteSequence(const QByteArray &data, int start, int length)
+QString Window::bufferToString(const QByteArray &data, int start, int length)
 {
     QString s;
 
@@ -284,7 +302,7 @@ QString Dialog::makeByteSequence(const QByteArray &data, int start, int length)
     return s;
 }
 
-QString Dialog::cmdToString(quint8 cmd)
+QString Window::cmdToString(quint8 cmd)
 {
     QString s;
 
@@ -301,20 +319,26 @@ QString Dialog::cmdToString(quint8 cmd)
     }
 
     switch (cmd & 0xf0) {
-    case MicontBusPacket::CMD_RESULT_OK:
-        s.append(" + OK");
-        break;
     case 0:
         break;
+    case MicontBusPacket::CMD_RESULT_OK:
+        s.append(tr(" + OK"));
+        break;
+    case MicontBusPacket::CMD_RESULT_ERRVAR:
+        s.append(tr(" + ADDR ERROR"));
+        break;
+    case MicontBusPacket::CMD_RESULT_ERRBSIZE:
+        s.append(tr(" + SIZE ERROR"));
+        break;
     default:
-        s.append(" + ERROR");
+        s.append(tr(" + ERROR"));
         break;
     }
 
     return s;
 }
 
-void Dialog::logPacket(const MicontBusPacket &packet)
+void Window::logPacket(const MicontBusPacket &packet)
 {
     QTreeWidgetItem *item = new QTreeWidgetItem;
     QTreeWidgetItem *subitem;
@@ -344,7 +368,7 @@ void Dialog::logPacket(const MicontBusPacket &packet)
     if (!packet.data().isEmpty()) {
         subitem = new QTreeWidgetItem(QTreeWidgetItem::UserType + 1);
         subitem->setData(0, Qt::UserRole, QPoint((packet.size()) ? 6 : 4, packet.data().length()));
-        subitem->setText(0, QString("%1: %2").arg(tr("data")).arg(makeByteSequence(packet.data())));
+        subitem->setText(0, QString("%1: %2").arg(tr("data")).arg(bufferToString(packet.data())));
         item->addChild(subitem);
     }
 
@@ -352,6 +376,6 @@ void Dialog::logPacket(const MicontBusPacket &packet)
     item->setData(0, Qt::UserRole, rawPacket);
 
     tree_monitor->addTopLevelItem(item);
-    tree_monitor->setItemWidget(item, 0, new QLabel(makeByteSequence(rawPacket)));
+    tree_monitor->setItemWidget(item, 0, new QLabel(bufferToString(rawPacket)));
     tree_monitor->scrollToBottom();
 }

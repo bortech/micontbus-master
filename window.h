@@ -1,12 +1,10 @@
-#ifndef DIALOG_H
-#define DIALOG_H
+#ifndef WINDOW_H
+#define WINDOW_H
 
-#include <QDialog>
-
+#include <QMainWindow>
 #include "micontbusmaster.h"
 
 QT_BEGIN_NAMESPACE
-
 class QLabel;
 class QLineEdit;
 class QSpinBox;
@@ -14,18 +12,16 @@ class QPushButton;
 class QComboBox;
 class QTreeWidget;
 class QTableWidget;
-
+class QTreeWidgetItem;
 QT_END_NAMESPACE
 
 class MicontBusPacket;
-class QTreeWidgetItem;
 
-class Dialog : public QDialog
+class Window : public QMainWindow
 {
     Q_OBJECT
-
 public:
-    Dialog(QWidget *parent = 0);
+    explicit Window(QWidget *parent = 0);
 
 private slots:
     void doTransaction();
@@ -36,10 +32,12 @@ private slots:
     void hexAddrChanged();
     void cmdChanged();
     void monitorItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous);
+    void monitorContextMenu(const QPoint &);
+    void monitorClear();
 
 private:
     void setControlsEnabled(bool enable);
-    QString makeByteSequence(const QByteArray &data, int start = 0, int length = 0);
+    QString bufferToString(const QByteArray &data, int start = 0, int length = 0);
     QString cmdToString(quint8 cmd);
     void logPacket(const MicontBusPacket &packet);
 
@@ -69,4 +67,4 @@ private:
     MicontBusMaster master;
 };
 
-#endif // DIALOG_H
+#endif // WINDOW_H

@@ -13,10 +13,11 @@ TEMPLATE = app
 
 
 SOURCES += main.cpp\
-        dialog.cpp \
     micontbuspacket.cpp \
-    micontbusmaster.cpp
+    micontbusmaster.cpp \
+    window.cpp
 
-HEADERS  += dialog.h \
+HEADERS  += \
     micontbuspacket.h \
-    micontbusmaster.h
+    micontbusmaster.h \
+    window.h
