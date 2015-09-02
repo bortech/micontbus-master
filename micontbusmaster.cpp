@@ -65,7 +65,9 @@ void MicontBusMaster::run()
         QDataStream s(&currentRequest, QIODevice::Append);
         s.setByteOrder(QDataStream::LittleEndian);
         s << crc16(currentRequest);
+#ifdef QT_DEBUG
         qDebug() << "<<" << currentRequest.toHex();
+#endif
         serial.write(currentRequest);
 
         if (serial.waitForBytesWritten(waitTimeout)) {
@@ -73,9 +75,9 @@ void MicontBusMaster::run()
                 QByteArray responseData = serial.readAll();
                 while (serial.waitForReadyRead(10))
                     responseData += serial.readAll();               
-
+#ifdef QT_DEBUG
                 qDebug() << ">>" << responseData.toHex();
-
+#endif
                 // check CRC
                 quint16 crc = ((quint16)responseData.at(responseData.size() - 1) << 8) | (responseData.at(responseData.size() - 2) & 0xff);
                 responseData.chop(2);
