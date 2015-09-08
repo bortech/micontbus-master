@@ -5,6 +5,12 @@
 #include <QMetaType>
 #include <QByteArray>
 
+typedef union {
+    quint32 u;
+    qint32 i;
+    float f;
+} tMicontVar;
+
 class MicontBusPacket
 {    
 public:
@@ -42,7 +48,7 @@ public:
     quint16 addr() const;
     quint16 size() const;
     QByteArray data() const;
-    QVector<quint32> variables() const;
+    QVector<tMicontVar> variables() const;
 
     // setters
     void setId(quint8 id);
@@ -50,8 +56,9 @@ public:
     void setAddr(quint16 addr);
     void setSize(quint16 size);
     void setData(const QByteArray &data);
-    void setData(qint32 data);
-    void setData(float data);
+    void setVariable(qint32 data);
+    void setVariable(float data);
+    void setVariables(const QVector<tMicontVar> &vars);
 
     bool parse(const QByteArray &rawPacket);
     QByteArray serialize() const;

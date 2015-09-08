@@ -12,10 +12,33 @@
 #include <QTableWidget>
 #include <QHeaderView>
 #include <QMenu>
+#include <QVector>
+#include <QItemDelegate>
+#include <QMessageBox>
 
 #include <QtSerialPort/QSerialPortInfo>
 
 QT_USE_NAMESPACE
+
+/* Delegate to add Data Editor input validation */
+class Delegate : public QItemDelegate
+{
+public:
+    QWidget* createEditor(QWidget *parent, const QStyleOptionViewItem & option,
+                      const QModelIndex & index) const
+    {
+        Q_UNUSED(option)
+        Q_UNUSED(index)
+
+        QLineEdit *lineEdit = new QLineEdit(parent);
+        QLocale locale = QLocale::C;
+        locale.setNumberOptions(QLocale::RejectGroupSeparator | QLocale::OmitGroupSeparator);
+        QValidator *validator = new QDoubleValidator;
+        validator->setLocale(locale);
+        lineEdit->setValidator(validator);
+        return lineEdit;
+    }
+};
 
 Window::Window(QWidget *parent) : QMainWindow(parent)
   , combo_port(new QComboBox())
@@ -80,14 +103,20 @@ Window::Window(QWidget *parent) : QMainWindow(parent)
     combo_type->addItem(tr("Tags"), DataTags);
 
     // size range & default value
-    spin_size->setRange(0, 0xffff);
-    spin_size->setValue(0);
+    spin_size->setRange(1, 0xffff);
+    spin_size->setValue(1);
+    connect(spin_size, SIGNAL(valueChanged(int)),
+            this, SLOT(countChanged()));
 
     // editor setup
     table_editor->setSelectionMode(QAbstractItemView::NoSelection);
     table_editor->verticalHeader()->setVisible(false);
     table_editor->setColumnCount(2);
     table_editor->setHorizontalHeaderLabels(QStringList() << tr("addr") << tr("data"));
+    table_editor->setItemDelegateForColumn(1, new Delegate);
+    table_editor->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(table_editor, SIGNAL(customContextMenuRequested(QPoint)),
+            this, SLOT(editorContextMenu(QPoint)));
 
     // monitor setup
     tree_monitor->setHeaderHidden(true);
@@ -228,11 +257,24 @@ void Window::doTransaction()
     }
 
     if (packet.cmd() == MicontBusPacket::CMD_PUTBUF_B) {
-        bool ok;
-        qint32 iData = table_editor->item(0, 1)->text().toInt(&ok, 10);
-        if (ok) {
-            packet.setData(iData);
+        QVector<tMicontVar> vars(table_editor->rowCount());
+
+        for (int i = 0; i < table_editor->rowCount(); i++) {
+            bool ok;
+            vars[i].u = table_editor->item(i, 1)->text().toUInt(&ok);
+            if (!ok)
+                vars[i].i = table_editor->item(i, 1)->text().toInt(&ok);
+            if (!ok)
+                vars[i].f = table_editor->item(i, 1)->text().toFloat(&ok);
+            if (!ok) {
+                // MAKE HORROR
+                QMessageBox msgBox;
+                msgBox.setText("Data conversion error");
+                msgBox.exec();
+            }
         }
+
+        packet.setVariables(vars);
     }
 
 #ifdef QT_DEBUG
@@ -270,11 +312,14 @@ void Window::processResponse(const QByteArray &rawPacket)
             table_editor->setItem(0, 0, new QTableWidgetItem(QString("0x%1").arg(p.addr(), 4, 16, QLatin1Char('0'))));
             table_editor->setItem(0, 1, new QTableWidgetItem(bufferToString(p.data())));
         } else if (combo_type->currentData().toInt() == DataVariables) {
-            QVector<quint32> vars = p.variables();
+            QVector<tMicontVar> vars = p.variables();
             table_editor->setRowCount(vars.count());
             for (int i = 0; i < vars.count(); i++) {
+                QTableWidgetItem *item = new QTableWidgetItem;
+                item->setData(Qt::UserRole, vars[i].u);
+                item->setText(QString("%1").arg(vars[i].u));
                 table_editor->setItem(i, 0, new QTableWidgetItem(QString("0x%1").arg(p.addr() + i, 4, 16, QLatin1Char('0'))));
-                table_editor->setItem(i, 1, new QTableWidgetItem(QString("%1").arg(vars[i])));
+                table_editor->setItem(i, 1, item);
             }
         }
     }
@@ -299,6 +344,16 @@ void Window::processTimeout(const QString &s)
 void Window::addrChanged(int newAddr)
 {
     line_addr->setText(QString("0x%1").arg(newAddr, 4, 16, QLatin1Char('0')));
+    if (combo_cmd->currentData().toInt() == MicontBusPacket::CMD_PUTBUF_B) {
+        fillDataEditor();
+    }
+}
+
+void Window::countChanged()
+{
+    if (combo_cmd->currentData().toInt() == MicontBusPacket::CMD_PUTBUF_B) {
+        fillDataEditor();
+    }
 }
 
 void Window::hexAddrChanged()
@@ -317,16 +372,22 @@ void Window::cmdChanged()
             toggleWidgets(dataWidgets, false);
             break;
         case MicontBusPacket::CMD_GETBUF_B:
-            spin_size->setValue(1);
-            toggleWidgets(dataWidgets, true);
-            break;
         case MicontBusPacket::CMD_PUTBUF_B:
             spin_size->setValue(1);
             toggleWidgets(dataWidgets, true);
-            table_editor->setRowCount(1);
-            table_editor->setItem(0, 0, new QTableWidgetItem(QString("0x%1").arg(spin_addr->value(), 4, 16, QLatin1Char('0'))));
-            table_editor->setItem(0, 1, new QTableWidgetItem(QString("0")));
+            if (combo_cmd->currentData().toInt() == MicontBusPacket::CMD_PUTBUF_B)
+                fillDataEditor();
             break;
+    }
+}
+
+void Window::fillDataEditor()
+{
+    table_editor->setRowCount(spin_size->value());
+    for (int i = 0; i < spin_size->value(); i++) {
+        table_editor->setItem(i, 0, new QTableWidgetItem(QString("0x%1").arg(spin_addr->value() + i, 4, 16, QLatin1Char('0'))));
+        if (!table_editor->item(i, 1))
+            table_editor->setItem(i, 1, new QTableWidgetItem(QString("0")));
     }
 }
 
@@ -357,6 +418,24 @@ void Window::monitorContextMenu(const QPoint &)
     menu->exec(QCursor::pos());
 }
 
+void Window::editorContextMenu(const QPoint &p)
+{
+    QTableWidgetItem *item = table_editor->itemAt(p);
+    if (!item)
+        return;
+
+    if (item->column() != 1)
+        return;
+
+    QMenu *menu = new QMenu;
+    menu->addAction(tr("Unsigned Int"), this, SLOT(itemSwitchViewToUInt()));
+    menu->addAction(tr("Int"), this, SLOT(itemSwitchViewToInt()));
+    menu->addAction(tr("Float"), this, SLOT(itemSwitchViewToFloat()));
+    menu->addAction(tr("HEX"), this, SLOT(itemSwitchViewToHex()));
+    menu->addAction(tr("Bit"), this, SLOT(itemSwitchViewToBit()));
+    menu->exec(QCursor::pos());
+}
+
 void Window::monitorClear()
 {
     master.statClear();
@@ -367,6 +446,48 @@ void Window::monitorClear()
         table_editor->clearContents();
         table_editor->setRowCount(0);
     }
+}
+
+void Window::itemSwitchViewToUInt()
+{
+    QTableWidgetItem *item = table_editor->currentItem();
+    if (!item)
+        return;
+    item->setText(QString("%1").arg(item->data(Qt::UserRole).toUInt()));
+}
+
+void Window::itemSwitchViewToInt()
+{
+    QTableWidgetItem *item = table_editor->currentItem();
+    if (!item)
+        return;
+    item->setText(QString("%1").arg(item->data(Qt::UserRole).toInt()));
+}
+
+void Window::itemSwitchViewToFloat()
+{
+    QTableWidgetItem *item = table_editor->currentItem();
+    if (!item)
+        return;
+    tMicontVar var;
+    var.u = item->data(Qt::UserRole).toUInt();
+    item->setText(QString("%1").arg(var.f));
+}
+
+void Window::itemSwitchViewToHex()
+{
+    QTableWidgetItem *item = table_editor->currentItem();
+    if (!item)
+        return;
+    item->setText(QString("0x%1").arg(item->data(Qt::UserRole).toUInt(), 8, 16, QLatin1Char('0')));
+}
+
+void Window::itemSwitchViewToBit()
+{
+    QTableWidgetItem *item = table_editor->currentItem();
+    if (!item)
+        return;
+    item->setText(QString("%1").arg(item->data(Qt::UserRole).toUInt(), 32, 2, QLatin1Char('0')));
 }
 
 void Window::toggleWidgets(const QList<QWidget *> &widgets, bool show)
@@ -385,14 +506,18 @@ QString Window::bufferToString(const QByteArray &data, int start, int length)
 {
     QString s;
 
+    s.append("<font color=#333333>");
+
     for (int i = 0; i < data.size(); i++) {
         if (length > 0 && i == start)
-            s.append("<font bgcolor=\"#000000\" color=red>");
+            s.append("<b><font color=black>");
         s.append(data.mid(i, 1).toHex());
         s.append(' ');
         if (length > 0 && i == start + length - 1)
-            s.append("</font>");
+            s.append("</font></b>");
     }
+
+    s.append("</font>");
 
     return s;
 }

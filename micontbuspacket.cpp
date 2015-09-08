@@ -49,13 +49,13 @@ QByteArray MicontBusPacket::data() const
     return m_data;
 }
 
-QVector<quint32> MicontBusPacket::variables() const
+QVector<tMicontVar> MicontBusPacket::variables() const
 {
     if (m_data.size() % sizeof(quint32) != 0)
-        return QVector<quint32>(0);
+        return QVector<tMicontVar>(0);
 
     int count = m_data.size() / sizeof(quint32);
-    QVector<quint32> v(count);
+    QVector<tMicontVar> v(count);
 
     QDataStream s(m_data);
     s.setByteOrder(QDataStream::LittleEndian);
@@ -63,7 +63,7 @@ QVector<quint32> MicontBusPacket::variables() const
     for (int i = 0; i < count; i++) {
         quint32 var;
         s >> var;
-        v[i] = var;
+        v[i].u = var;
     }
 
     return v;
@@ -94,7 +94,7 @@ void MicontBusPacket::setData(const QByteArray &data)
     m_data = data;
 }
 
-void MicontBusPacket::setData(qint32 data)
+void MicontBusPacket::setVariable(qint32 data)
 {
     QDataStream s(&m_data, QIODevice::WriteOnly);
     s.setByteOrder(QDataStream::LittleEndian);
@@ -102,12 +102,22 @@ void MicontBusPacket::setData(qint32 data)
     s << data;
 }
 
-void MicontBusPacket::setData(float data)
+void MicontBusPacket::setVariable(float data)
 {
     QDataStream s(&m_data, QIODevice::WriteOnly);
     s.setByteOrder(QDataStream::LittleEndian);
 
     s << data;
+}
+
+void MicontBusPacket::setVariables(const QVector<tMicontVar> &vars)
+{
+    QDataStream s(&m_data, QIODevice::WriteOnly);
+    s.setByteOrder(QDataStream::LittleEndian);
+
+    foreach (tMicontVar var, vars) {
+        s << var.u;
+    }
 }
 
 bool MicontBusPacket::parse(const QByteArray &rawPacket)

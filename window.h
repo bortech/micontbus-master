@@ -14,6 +14,7 @@ class QPushButton;
 class QComboBox;
 class QTreeWidget;
 class QTableWidget;
+class QTableWidgetItem;
 class QTreeWidgetItem;
 QT_END_NAMESPACE
 
@@ -37,11 +38,19 @@ private slots:
     void processError(const QString &s);
     void processTimeout(const QString &s);
     void addrChanged(int newAddr);
+    void countChanged();
     void hexAddrChanged();
     void cmdChanged();
+    void fillDataEditor();
     void monitorItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous);
     void monitorContextMenu(const QPoint &);
+    void editorContextMenu(const QPoint &p);
     void monitorClear();
+    void itemSwitchViewToUInt();
+    void itemSwitchViewToInt();
+    void itemSwitchViewToFloat();
+    void itemSwitchViewToHex();
+    void itemSwitchViewToBit();
 
 private:
     void toggleWidgets(const QList<QWidget *> &widgets, bool show);
