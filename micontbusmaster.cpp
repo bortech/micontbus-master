@@ -71,6 +71,9 @@ void MicontBusMaster::run()
         serial.write(currentRequest);
 
         if (serial.waitForBytesWritten(waitTimeout)) {
+            m_statTxBytes += currentRequest.size();
+            m_statTxPackets++;
+
             if (serial.waitForReadyRead(currentWaitTimeout)) {
                 QByteArray responseData = serial.readAll();
                 while (serial.waitForReadyRead(10))
@@ -78,19 +81,25 @@ void MicontBusMaster::run()
 #ifdef QT_DEBUG
                 qDebug() << ">>" << responseData.toHex();
 #endif
+                m_statRxBytes += responseData.size();
+
                 // check CRC
                 quint16 crc = ((quint16)responseData.at(responseData.size() - 1) << 8) | (responseData.at(responseData.size() - 2) & 0xff);
                 responseData.chop(2);
                 if (crc == crc16(responseData)) {
+                    m_statRxPackets++;
                     emit this->response(responseData);
                 } else {
+                    m_statCrcErrors++;
                     emit error(tr("crc mismatch"));
                 }
             } else {
+                m_statTimeouts++;
                 emit timeout(tr("read timeout"));
             }
 
         } else {
+            m_statTimeouts++;
             emit timeout(tr("write timeout"));
         }
 
@@ -108,6 +117,46 @@ void MicontBusMaster::run()
         mutex.unlock();
     }
 
+}
+
+void MicontBusMaster::statClear()
+{
+    m_statRxBytes = 0;
+    m_statTxBytes = 0;
+    m_statRxPackets = 0;
+    m_statTxPackets = 0;
+    m_statCrcErrors = 0;
+    m_statTimeouts = 0;
+}
+
+quint32 MicontBusMaster::statTxBytes()
+{
+    return m_statTxBytes;
+}
+
+quint32 MicontBusMaster::statRxBytes()
+{
+    return m_statRxBytes;
+}
+
+quint32 MicontBusMaster::statTxPackets()
+{
+    return m_statTxPackets;
+}
+
+quint32 MicontBusMaster::statRxPackets()
+{
+    return m_statRxPackets;
+}
+
+quint32 MicontBusMaster::statCrcErrors()
+{
+    return m_statCrcErrors;
+}
+
+quint32 MicontBusMaster::statTimeouts()
+{
+    return m_statTimeouts;
 }
 
 quint16 MicontBusMaster::crc16(const QByteArray &array)

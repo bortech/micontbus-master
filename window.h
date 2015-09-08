@@ -49,6 +49,7 @@ private:
     QString bufferToString(const QByteArray &data, int start = 0, int length = 0);
     QString cmdToString(quint8 cmd);
     void logPacket(const MicontBusPacket &packet);
+    void updateStatistics(void);
 
 private:
     // settings group
@@ -74,6 +75,14 @@ private:
 
     // status label
     QLabel *label_status;
+
+    // statistics
+    QLabel *label_stat_rx_bytes;
+    QLabel *label_stat_tx_bytes;
+    QLabel *label_stat_rx_packets;
+    QLabel *label_stat_tx_packets;
+    QLabel *label_stat_crc_errors;
+    QLabel *label_stat_timeouts;
 
     MicontBusMaster master;
 };

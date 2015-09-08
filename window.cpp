@@ -145,10 +145,39 @@ Window::Window(QWidget *parent) : QMainWindow(parent)
     grid_data->addWidget(table_editor, 0, 0);
     group_data->setLayout(grid_data);
 
+    label_stat_tx_bytes = new QLabel;
+    label_stat_tx_packets = new QLabel;
+    label_stat_rx_bytes = new QLabel;
+    label_stat_rx_packets = new QLabel;
+    label_stat_crc_errors = new QLabel;
+    label_stat_timeouts = new QLabel;
+
     // monitor group
     QGroupBox *group_monitor = new QGroupBox(tr("Monitor:"));
     QGridLayout *grid_monitor = new QGridLayout;
-    grid_monitor->addWidget(tree_monitor, 0, 0);
+    grid_monitor->addWidget(tree_monitor, 0, 0, 1, 6);
+
+    grid_monitor->addWidget(new QLabel(tr("Tx Bytes:")), 1, 0);
+    grid_monitor->addWidget(label_stat_tx_bytes, 1, 1);
+    grid_monitor->setColumnStretch(1, 1);
+
+    grid_monitor->addWidget(new QLabel(tr("Tx Packets:")), 1, 2);
+    grid_monitor->addWidget(label_stat_tx_packets, 1, 3);
+    grid_monitor->setColumnStretch(3, 1);
+
+    grid_monitor->addWidget(new QLabel(tr("CRC Errors:")), 1, 4);
+    grid_monitor->addWidget(label_stat_crc_errors, 1, 5);
+    grid_monitor->setColumnStretch(5, 1);
+
+    grid_monitor->addWidget(new QLabel(tr("Rx Bytes:")), 2, 0);
+    grid_monitor->addWidget(label_stat_rx_bytes, 2, 1);
+
+    grid_monitor->addWidget(new QLabel(tr("Rx Packets:")), 2, 2);
+    grid_monitor->addWidget(label_stat_rx_packets, 2, 3);
+
+    grid_monitor->addWidget(new QLabel(tr("Timeouts:")), 2, 4);
+    grid_monitor->addWidget(label_stat_timeouts, 2, 5);
+
     group_monitor->setLayout(grid_monitor);
 
     // main layout
@@ -177,6 +206,9 @@ Window::Window(QWidget *parent) : QMainWindow(parent)
             this, SLOT(processTimeout(QString)));
 
     cmdChanged();
+
+    master.statClear();
+    updateStatistics();
 }
 
 void Window::doTransaction()
@@ -188,7 +220,12 @@ void Window::doTransaction()
     packet.setId(spin_id->value());
     packet.setCmd(combo_cmd->currentData().toInt());
     packet.setAddr(spin_addr->value());
-    packet.setSize(spin_size->value());
+
+    if (combo_type->currentData().toInt() == DataVariables) {
+        packet.setSize(spin_size->value() * 4);
+    } else {
+        packet.setSize(spin_size->value());
+    }
 
     if (packet.cmd() == MicontBusPacket::CMD_PUTBUF_B) {
         bool ok;
@@ -249,12 +286,14 @@ void Window::processError(const QString &s)
 {
     setControlsEnabled(true);
     label_status->setText(tr("Error (%1)").arg(s));
+    updateStatistics();
 }
 
 void Window::processTimeout(const QString &s)
 {
     setControlsEnabled(true);
     label_status->setText(tr("Error (%1)").arg(s));
+    updateStatistics();
 }
 
 void Window::addrChanged(int newAddr)
@@ -320,7 +359,14 @@ void Window::monitorContextMenu(const QPoint &)
 
 void Window::monitorClear()
 {
+    master.statClear();
+    updateStatistics();
     tree_monitor->clear();
+
+    if (combo_cmd->currentData().toInt() != MicontBusPacket::CMD_PUTBUF_B) {
+        table_editor->clearContents();
+        table_editor->setRowCount(0);
+    }
 }
 
 void Window::toggleWidgets(const QList<QWidget *> &widgets, bool show)
@@ -341,11 +387,11 @@ QString Window::bufferToString(const QByteArray &data, int start, int length)
 
     for (int i = 0; i < data.size(); i++) {
         if (length > 0 && i == start)
-            s.append("<b>");
+            s.append("<font bgcolor=\"#000000\" color=red>");
         s.append(data.mid(i, 1).toHex());
         s.append(' ');
         if (length > 0 && i == start + length - 1)
-            s.append("</b>");
+            s.append("</font>");
     }
 
     return s;
@@ -427,4 +473,17 @@ void Window::logPacket(const MicontBusPacket &packet)
     tree_monitor->addTopLevelItem(item);
     tree_monitor->setItemWidget(item, 0, new QLabel(bufferToString(rawPacket)));
     tree_monitor->scrollToBottom();
+
+    updateStatistics();
+}
+
+void Window::updateStatistics()
+{
+    label_stat_rx_bytes->setText(QString::number(master.statRxBytes()));
+    label_stat_tx_bytes->setText(QString::number(master.statTxBytes()));
+    label_stat_rx_packets->setText(QString::number(master.statRxPackets()));
+    label_stat_tx_packets->setText(QString::number(master.statTxPackets()));
+    QString color = (master.statCrcErrors() != 0) ? "red" : "black";
+    label_stat_crc_errors->setText("<font color=" + color + ">" + QString::number(master.statCrcErrors()) + "</font>");
+    label_stat_timeouts->setText(QString::number(master.statTimeouts()));
 }
