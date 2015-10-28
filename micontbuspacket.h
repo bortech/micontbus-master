@@ -42,20 +42,22 @@ public:
     MicontBusPacket(const MicontBusPacket &other);
     ~MicontBusPacket();
 
-    // getters
     quint8 id() const;
-    quint8 cmd() const;
-    quint16 addr() const;
-    quint16 size() const;
-    QByteArray data() const;
-    QVector<tMicontVar> variables() const;
-
-    // setters
     void setId(quint8 id);
+
+    quint8 cmd() const;
     void setCmd(quint8 cmd);
+
+    quint16 addr() const;
     void setAddr(quint16 addr);
+
+    quint16 size() const;
     void setSize(quint16 size);
+
+    QByteArray data() const;
     void setData(const QByteArray &data);
+
+    QVector<tMicontVar> variables() const;
     void setVariable(qint32 data);
     void setVariable(float data);
     void setVariables(const QVector<tMicontVar> &vars);

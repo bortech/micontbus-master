@@ -16,6 +16,7 @@ class QTreeWidget;
 class QTableWidget;
 class QTableWidgetItem;
 class QTreeWidgetItem;
+class QTextEdit;
 QT_END_NAMESPACE
 
 class MicontBusPacket;
@@ -41,6 +42,7 @@ private slots:
     void countChanged();
     void hexAddrChanged();
     void cmdChanged();
+    void typeChanged();
     void fillDataEditor();
     void monitorItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous);
     void monitorContextMenu(const QPoint &);
@@ -62,36 +64,40 @@ private:
 
 private:
     // settings group
-    QComboBox *combo_port;
-    QComboBox *combo_speed;
-    QSpinBox *spin_timeout;
+    QComboBox *comboPort;
+    QComboBox *comboSpeed;
+    QSpinBox *spinTimeout;
 
     // micontbus query group
-    QSpinBox *spin_id;
-    QComboBox *combo_cmd;
-    QLineEdit *line_addr;
-    QSpinBox *spin_addr;
-    QSpinBox *spin_size;
-    QComboBox *combo_type;
-    QPushButton *push_query;
+    QSpinBox *spinId;
+    QComboBox *comboCmd;
+    QLineEdit *lineAddr;
+    QSpinBox *spinAddr;
+    QSpinBox *spinSize;
+    QComboBox *comboType;
+    QPushButton *pushQuery;
     QList<QWidget *> dataWidgets;
 
-    // query data editor & result display
-    QTableWidget *table_editor;
+    // Variables editor
+    QTableWidget *tableVariables;
+    // Tags editor
+    QTableWidget *tableTags;
+    // Raw bytes editor
+    QTextEdit *textRaw;
 
     // monitor group
-    QTreeWidget *tree_monitor;
+    QTreeWidget *treeMonitor;
 
     // status label
-    QLabel *label_status;
+    QLabel *labelStatus;
 
     // statistics
-    QLabel *label_stat_rx_bytes;
-    QLabel *label_stat_tx_bytes;
-    QLabel *label_stat_rx_packets;
-    QLabel *label_stat_tx_packets;
-    QLabel *label_stat_crc_errors;
-    QLabel *label_stat_timeouts;
+    QLabel *labelStatRxBytes;
+    QLabel *labelStatTxBytes;
+    QLabel *labelStatRxPackets;
+    QLabel *labelStatTxPackets;
+    QLabel *labelStatCrcErrors;
+    QLabel *labelStatTimeouts;
 
     MicontBusMaster master;
 };

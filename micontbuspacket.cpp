@@ -3,12 +3,8 @@
 #include <QDataStream>
 #include <QVector>
 
-MicontBusPacket::MicontBusPacket()
-{
-    m_id = 0;
-    m_cmd = 0;
-    m_addr = 0;
-    m_size = 0;
+MicontBusPacket::MicontBusPacket() : m_id(0), m_cmd(0), m_addr(0), m_size(0)
+{    
 }
 
 MicontBusPacket::MicontBusPacket(const MicontBusPacket &other)

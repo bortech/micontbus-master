@@ -10,6 +10,7 @@
 #include <QGroupBox>
 #include <QTreeWidget>
 #include <QTableWidget>
+#include <QTextEdit>
 #include <QHeaderView>
 #include <QMenu>
 #include <QVector>
@@ -41,122 +42,140 @@ public:
 };
 
 Window::Window(QWidget *parent) : QMainWindow(parent)
-  , combo_port(new QComboBox())
-  , combo_speed(new QComboBox())
-  , spin_timeout(new QSpinBox())
-  , spin_id(new QSpinBox())
-  , combo_cmd(new QComboBox())
-  , line_addr(new QLineEdit("0x0000"))
-  , spin_addr(new QSpinBox())
-  , spin_size(new QSpinBox())
-  , combo_type(new QComboBox)
-  , push_query(new QPushButton(tr("Query")))
-  , table_editor(new QTableWidget())
-  , tree_monitor(new QTreeWidget())
-  , label_status(new QLabel(tr("Ready")))
+  , comboPort(new QComboBox())
+  , comboSpeed(new QComboBox())
+  , spinTimeout(new QSpinBox())
+  , spinId(new QSpinBox())
+  , comboCmd(new QComboBox())
+  , lineAddr(new QLineEdit("0x0000"))
+  , spinAddr(new QSpinBox())
+  , spinSize(new QSpinBox())
+  , comboType(new QComboBox)
+  , pushQuery(new QPushButton(QIcon("icons/transaction.svg"), tr("Query")))
+  , tableVariables(new QTableWidget())
+  , tableTags(new QTableWidget())
+  , textRaw(new QTextEdit())
+  , treeMonitor(new QTreeWidget())
+  , labelStatus(new QLabel(tr("Ready")))
 {
     // fill port combo with available serial ports
     foreach (const QSerialPortInfo &info, QSerialPortInfo::availablePorts())
-        combo_port->addItem(QString("%1 %2").arg(info.portName()).arg(info.description()), info.portName());
-    combo_port->setCurrentIndex(combo_port->findData("COM4"));
+        comboPort->addItem(QString("%1 %2").arg(info.portName()).arg(info.description()), info.portName());
+    comboPort->setCurrentIndex(comboPort->findData("COM4"));
 
     // fill speed combo with available baudrates
     foreach (qint32 baudrate, QSerialPortInfo::standardBaudRates()) {
         if (baudrate >= 9600) {
-            combo_speed->addItem(QString::number(baudrate), baudrate);
+            comboSpeed->addItem(QString::number(baudrate), baudrate);
         }
     }
-    combo_speed->setCurrentIndex(combo_speed->findText("115200"));
+    comboSpeed->setCurrentIndex(comboSpeed->findText("115200"));
 
     // timeout range & default value
-    spin_timeout->setRange(0, 10000);
-    spin_timeout->setValue(1000);
+    spinTimeout->setRange(0, 10000);
+    spinTimeout->setValue(1000);
 
     // id range & default value
-    spin_id->setRange(0, 255);
-    spin_id->setValue(2);
+    spinId->setRange(0, 255);
+    spinId->setValue(2);
 
     // fill cmd combo
-    combo_cmd->addItem(cmdToString(MicontBusPacket::CMD_GETSIZE), MicontBusPacket::CMD_GETSIZE);
-    combo_cmd->addItem(cmdToString(MicontBusPacket::CMD_GETBUF_B), MicontBusPacket::CMD_GETBUF_B);
-    combo_cmd->addItem(cmdToString(MicontBusPacket::CMD_PUTBUF_B), MicontBusPacket::CMD_PUTBUF_B);
-    connect(combo_cmd, SIGNAL(currentIndexChanged(int)),
+    comboCmd->addItem(cmdToString(MicontBusPacket::CMD_GETSIZE), MicontBusPacket::CMD_GETSIZE);
+    comboCmd->addItem(cmdToString(MicontBusPacket::CMD_GETBUF_B), MicontBusPacket::CMD_GETBUF_B);
+    comboCmd->addItem(cmdToString(MicontBusPacket::CMD_PUTBUF_B), MicontBusPacket::CMD_PUTBUF_B);
+    connect(comboCmd, SIGNAL(currentIndexChanged(int)),
             this, SLOT(cmdChanged()));
 
     // addr range & default value
-    spin_addr->setRange(0, 0xffff);
-    spin_addr->setValue(0);
-    connect(spin_addr, SIGNAL(valueChanged(int)),
+    spinAddr->setRange(0, 0xffff);
+    spinAddr->setValue(0);
+    connect(spinAddr, SIGNAL(valueChanged(int)),
             this, SLOT(addrChanged(int)));
 
     // addr hex line edit setup
     QRegExp rx("0x[0-9|a-f|A-F]{1,4}");
     QValidator *v = new QRegExpValidator(rx);
-    line_addr->setValidator(v);
-    line_addr->setFixedWidth(50);
-    connect(line_addr, SIGNAL(editingFinished()),
+    lineAddr->setValidator(v);
+    lineAddr->setFixedWidth(50);
+    connect(lineAddr, SIGNAL(editingFinished()),
             this, SLOT(hexAddrChanged()));
 
     // fill data type combo
-    combo_type->addItem(tr("Variables"), DataVariables);
-    combo_type->addItem(tr("Raw Bytes"), DataRawBytes);
-    combo_type->addItem(tr("Tags"), DataTags);
+    comboType->addItem(tr("Variables"), DataVariables);
+    comboType->addItem(tr("Tags"), DataTags);
+    comboType->addItem(tr("Raw Bytes"), DataRawBytes);    
+    connect(comboType, SIGNAL(currentIndexChanged(int)),
+            this, SLOT(typeChanged()));
 
     // size range & default value
-    spin_size->setRange(1, 0xffff);
-    spin_size->setValue(1);
-    connect(spin_size, SIGNAL(valueChanged(int)),
+    spinSize->setRange(0, 0xffff);
+    spinSize->setValue(1);
+    connect(spinSize, SIGNAL(valueChanged(int)),
             this, SLOT(countChanged()));
 
-    // editor setup
-    table_editor->setSelectionMode(QAbstractItemView::NoSelection);
-    table_editor->verticalHeader()->setVisible(false);
-    table_editor->setColumnCount(2);
-    table_editor->setHorizontalHeaderLabels(QStringList() << tr("addr") << tr("data"));
-    table_editor->setItemDelegateForColumn(1, new Delegate);
-    table_editor->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(table_editor, SIGNAL(customContextMenuRequested(QPoint)),
+    // variables editor setup
+    tableVariables->setSelectionMode(QAbstractItemView::NoSelection);
+    tableVariables->verticalHeader()->setVisible(false);
+    tableVariables->setColumnCount(2);
+    tableVariables->setHorizontalHeaderLabels(QStringList() << tr("addr") << tr("data"));
+    tableVariables->setItemDelegateForColumn(1, new Delegate);
+    tableVariables->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(tableVariables, SIGNAL(customContextMenuRequested(QPoint)),
             this, SLOT(editorContextMenu(QPoint)));
 
+    // tags editor setup
+    tableTags->hide();
+    tableTags->setSelectionMode(QAbstractItemView::NoSelection);
+    tableTags->verticalHeader()->setVisible(false);
+    tableTags->setColumnCount(4);
+    tableTags->setHorizontalHeaderLabels(QStringList() << tr("Tag") << tr("Channel") << tr("Value1") << tr("Value2"));
+//    tableTags->setItemDelegateForColumn(1, new Delegate);
+//    tableTags->setContextMenuPolicy(Qt::CustomContextMenu);
+//    connect(tableTags, SIGNAL(customContextMenuRequested(QPoint)),
+//            this, SLOT(editorContextMenu(QPoint)));
+
+    // raw bytes editor
+    textRaw->hide();
+
     // monitor setup
-    tree_monitor->setHeaderHidden(true);
-    tree_monitor->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(tree_monitor, SIGNAL(customContextMenuRequested(QPoint)),
+    treeMonitor->setHeaderHidden(true);
+    treeMonitor->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(treeMonitor, SIGNAL(customContextMenuRequested(QPoint)),
             this, SLOT(monitorContextMenu(QPoint)));
-    connect(tree_monitor, SIGNAL(currentItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)),
+    connect(treeMonitor, SIGNAL(currentItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)),
             this, SLOT(monitorItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)));
 
     // settings group
     QGroupBox *group_settings = new QGroupBox(tr("Settings:"));
     QGridLayout *grid_settings = new QGridLayout;
     grid_settings->addWidget(new QLabel(tr("Port:")), 0, 0);
-    grid_settings->addWidget(combo_port, 0, 1, 1, 3);
+    grid_settings->addWidget(comboPort, 0, 1, 1, 3);
     grid_settings->addWidget(new QLabel(tr("Speed:")), 1, 0);
-    grid_settings->addWidget(combo_speed, 1, 1);
+    grid_settings->addWidget(comboSpeed, 1, 1);
     grid_settings->addWidget(new QLabel(tr("Timeout, ms:")), 1, 2);
-    grid_settings->addWidget(spin_timeout, 1, 3);
+    grid_settings->addWidget(spinTimeout, 1, 3);
     group_settings->setLayout(grid_settings);
 
     // query group
     QGroupBox *group_query = new QGroupBox(tr("MicontBUS Query:"));
     QGridLayout *grid_query = new QGridLayout;
     grid_query->addWidget(new QLabel(tr("Id:")), 0, 0);
-    grid_query->addWidget(spin_id, 0, 1);
+    grid_query->addWidget(spinId, 0, 1);
     grid_query->addWidget(new QLabel(tr("Cmd:")), 1, 0);
-    grid_query->addWidget(combo_cmd, 1, 1, 1, 2);
+    grid_query->addWidget(comboCmd, 1, 1, 1, 2);
     grid_query->addWidget(new QLabel(tr("Addr:")), 2, 0);
-    grid_query->addWidget(spin_addr, 2, 1);
-    grid_query->addWidget(line_addr, 2, 2);
+    grid_query->addWidget(spinAddr, 2, 1);
+    grid_query->addWidget(lineAddr, 2, 2);
 
     // data widgets block
     dataWidgets << new QLabel(tr("Data:"));
     grid_query->addWidget(dataWidgets.last(), 3, 0);
-    dataWidgets << combo_type;
-    grid_query->addWidget(combo_type, 3, 1, 1, 2);
+    dataWidgets << comboType;
+    grid_query->addWidget(comboType, 3, 1, 1, 2);
     dataWidgets << new QLabel(tr("Count:"));
     grid_query->addWidget(dataWidgets.last(), 3, 3);
-    dataWidgets << spin_size;
-    grid_query->addWidget(spin_size, 3, 4);
+    dataWidgets << spinSize;
+    grid_query->addWidget(spinSize, 3, 4);
 
     grid_query->setColumnStretch(5, 1);
     group_query->setLayout(grid_query);
@@ -164,48 +183,50 @@ Window::Window(QWidget *parent) : QMainWindow(parent)
     // transaction group
     QGroupBox *group_transaction = new QGroupBox(tr("Transaction:"));
     QGridLayout *grid_transaction = new QGridLayout;
-    grid_transaction->addWidget(push_query, 0, 0);
+    grid_transaction->addWidget(pushQuery, 0, 0);
     grid_transaction->setColumnStretch(1, 1);
     group_transaction->setLayout(grid_transaction);
 
     // data editor group
-    QGroupBox *group_data = new QGroupBox(tr("Data editor:"));
+    QGroupBox *group_data = new QGroupBox(tr("Data viewer/editor:"));
     QGridLayout *grid_data = new QGridLayout;
-    grid_data->addWidget(table_editor, 0, 0);
+    grid_data->addWidget(tableVariables, 0, 0);
+    grid_data->addWidget(tableTags, 1, 0);
+    grid_data->addWidget(textRaw, 2, 0);
     group_data->setLayout(grid_data);
 
-    label_stat_tx_bytes = new QLabel;
-    label_stat_tx_packets = new QLabel;
-    label_stat_rx_bytes = new QLabel;
-    label_stat_rx_packets = new QLabel;
-    label_stat_crc_errors = new QLabel;
-    label_stat_timeouts = new QLabel;
+    labelStatTxBytes = new QLabel;
+    labelStatTxPackets = new QLabel;
+    labelStatRxBytes = new QLabel;
+    labelStatRxPackets = new QLabel;
+    labelStatCrcErrors = new QLabel;
+    labelStatTimeouts = new QLabel;
 
     // monitor group
     QGroupBox *group_monitor = new QGroupBox(tr("Monitor:"));
     QGridLayout *grid_monitor = new QGridLayout;
-    grid_monitor->addWidget(tree_monitor, 0, 0, 1, 6);
+    grid_monitor->addWidget(treeMonitor, 0, 0, 1, 6);
 
     grid_monitor->addWidget(new QLabel(tr("Tx Bytes:")), 1, 0);
-    grid_monitor->addWidget(label_stat_tx_bytes, 1, 1);
+    grid_monitor->addWidget(labelStatTxBytes, 1, 1);
     grid_monitor->setColumnStretch(1, 1);
 
     grid_monitor->addWidget(new QLabel(tr("Tx Packets:")), 1, 2);
-    grid_monitor->addWidget(label_stat_tx_packets, 1, 3);
+    grid_monitor->addWidget(labelStatTxPackets, 1, 3);
     grid_monitor->setColumnStretch(3, 1);
 
     grid_monitor->addWidget(new QLabel(tr("CRC Errors:")), 1, 4);
-    grid_monitor->addWidget(label_stat_crc_errors, 1, 5);
+    grid_monitor->addWidget(labelStatCrcErrors, 1, 5);
     grid_monitor->setColumnStretch(5, 1);
 
     grid_monitor->addWidget(new QLabel(tr("Rx Bytes:")), 2, 0);
-    grid_monitor->addWidget(label_stat_rx_bytes, 2, 1);
+    grid_monitor->addWidget(labelStatRxBytes, 2, 1);
 
     grid_monitor->addWidget(new QLabel(tr("Rx Packets:")), 2, 2);
-    grid_monitor->addWidget(label_stat_rx_packets, 2, 3);
+    grid_monitor->addWidget(labelStatRxPackets, 2, 3);
 
     grid_monitor->addWidget(new QLabel(tr("Timeouts:")), 2, 4);
-    grid_monitor->addWidget(label_stat_timeouts, 2, 5);
+    grid_monitor->addWidget(labelStatTimeouts, 2, 5);
 
     group_monitor->setLayout(grid_monitor);
 
@@ -216,7 +237,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent)
     grid_main->addWidget(group_transaction, 2, 0);
     grid_main->addWidget(group_data, 3, 0);
     grid_main->addWidget(group_monitor, 0, 1, 4, 1);
-    grid_main->addWidget(label_status, 4, 0);
+    grid_main->addWidget(labelStatus, 4, 0);
     grid_main->setColumnStretch(1, 1);
 
     QWidget *w = new QWidget(this);
@@ -225,7 +246,7 @@ Window::Window(QWidget *parent) : QMainWindow(parent)
     setWindowTitle(tr("MicontBUS RTU Master"));
     setWindowIcon(QIcon("icons/network.svg"));
 
-    connect(push_query, SIGNAL(clicked()),
+    connect(pushQuery, SIGNAL(clicked()),
             this, SLOT(doTransaction()));
     connect(&master, SIGNAL(response(QByteArray)),
             this, SLOT(processResponse(QByteArray)));
@@ -243,29 +264,29 @@ Window::Window(QWidget *parent) : QMainWindow(parent)
 void Window::doTransaction()
 {
     setControlsEnabled(false);
-    label_status->setText(tr("Opening port %1...").arg(combo_port->currentData().toString()));
+    labelStatus->setText(tr("Opening port %1...").arg(comboPort->currentData().toString()));
 
     MicontBusPacket packet;
-    packet.setId(spin_id->value());
-    packet.setCmd(combo_cmd->currentData().toInt());
-    packet.setAddr(spin_addr->value());
+    packet.setId(spinId->value());
+    packet.setCmd(comboCmd->currentData().toInt());
+    packet.setAddr(spinAddr->value());
 
-    if (combo_type->currentData().toInt() == DataVariables) {
-        packet.setSize(spin_size->value() * 4);
+    if (comboType->currentData().toInt() == DataVariables) {
+        packet.setSize(spinSize->value() * 4);
     } else {
-        packet.setSize(spin_size->value());
+        packet.setSize(spinSize->value());
     }
 
     if (packet.cmd() == MicontBusPacket::CMD_PUTBUF_B) {
-        QVector<tMicontVar> vars(table_editor->rowCount());
+        QVector<tMicontVar> vars(tableVariables->rowCount());
 
-        for (int i = 0; i < table_editor->rowCount(); i++) {
+        for (int i = 0; i < tableVariables->rowCount(); i++) {
             bool ok;
-            vars[i].u = table_editor->item(i, 1)->text().toUInt(&ok);
+            vars[i].u = tableVariables->item(i, 1)->text().toUInt(&ok);
             if (!ok)
-                vars[i].i = table_editor->item(i, 1)->text().toInt(&ok);
+                vars[i].i = tableVariables->item(i, 1)->text().toInt(&ok);
             if (!ok)
-                vars[i].f = table_editor->item(i, 1)->text().toFloat(&ok);
+                vars[i].f = tableVariables->item(i, 1)->text().toFloat(&ok);
             if (!ok) {
                 // MAKE HORROR
                 QMessageBox msgBox;
@@ -281,9 +302,9 @@ void Window::doTransaction()
     qDebug() << packet;
 #endif
 
-    master.transaction(combo_port->currentData().toString(),
-                       combo_speed->currentData().toInt(),
-                       spin_timeout->value(), packet.serialize());
+    master.transaction(comboPort->currentData().toString(),
+                       comboSpeed->currentData().toInt(),
+                       spinTimeout->value(), packet.serialize());
 
     logPacket(packet);
 }
@@ -305,89 +326,114 @@ void Window::processResponse(const QByteArray &rawPacket)
 #endif
 
     if (!p.data().isEmpty()) {
-        table_editor->clearContents();
+        tableVariables->clearContents();
 
-        if (combo_type->currentData().toInt() == DataRawBytes) {
-            table_editor->setRowCount(1);
-            table_editor->setItem(0, 0, new QTableWidgetItem(QString("0x%1").arg(p.addr(), 4, 16, QLatin1Char('0'))));
-            table_editor->setItem(0, 1, new QTableWidgetItem(bufferToString(p.data())));
-        } else if (combo_type->currentData().toInt() == DataVariables) {
+        if (comboType->currentData().toInt() == DataRawBytes) {
+            tableVariables->setRowCount(1);
+            tableVariables->setItem(0, 0, new QTableWidgetItem(QString("0x%1").arg(p.addr(), 4, 16, QLatin1Char('0'))));
+            tableVariables->setItem(0, 1, new QTableWidgetItem(bufferToString(p.data())));
+        } else if (comboType->currentData().toInt() == DataVariables) {
             QVector<tMicontVar> vars = p.variables();
-            table_editor->setRowCount(vars.count());
+            tableVariables->setRowCount(vars.count());
             for (int i = 0; i < vars.count(); i++) {
                 QTableWidgetItem *item = new QTableWidgetItem;
                 item->setData(Qt::UserRole, vars[i].u);
                 item->setText(QString("%1").arg(vars[i].u));
-                table_editor->setItem(i, 0, new QTableWidgetItem(QString("0x%1").arg(p.addr() + i, 4, 16, QLatin1Char('0'))));
-                table_editor->setItem(i, 1, item);
+                tableVariables->setItem(i, 0, new QTableWidgetItem(QString("0x%1").arg(p.addr() + i, 4, 16, QLatin1Char('0'))));
+                tableVariables->setItem(i, 1, item);
             }
         }
     }
 
-    label_status->setText(tr("Ready"));
+    labelStatus->setText(tr("Ready"));
 }
 
 void Window::processError(const QString &s)
 {
     setControlsEnabled(true);
-    label_status->setText(tr("Error (%1)").arg(s));
+    labelStatus->setText(tr("Error (%1)").arg(s));
     updateStatistics();
 }
 
 void Window::processTimeout(const QString &s)
 {
     setControlsEnabled(true);
-    label_status->setText(tr("Error (%1)").arg(s));
+    labelStatus->setText(tr("Error (%1)").arg(s));
     updateStatistics();
 }
 
 void Window::addrChanged(int newAddr)
 {
-    line_addr->setText(QString("0x%1").arg(newAddr, 4, 16, QLatin1Char('0')));
-    if (combo_cmd->currentData().toInt() == MicontBusPacket::CMD_PUTBUF_B) {
+    lineAddr->setText(QString("0x%1").arg(newAddr, 4, 16, QLatin1Char('0')));
+    if (comboCmd->currentData().toInt() == MicontBusPacket::CMD_PUTBUF_B) {
         fillDataEditor();
     }
 }
 
 void Window::countChanged()
 {
-    if (combo_cmd->currentData().toInt() == MicontBusPacket::CMD_PUTBUF_B) {
+    if (comboCmd->currentData().toInt() == MicontBusPacket::CMD_PUTBUF_B) {
         fillDataEditor();
     }
 }
 
 void Window::hexAddrChanged()
 {
-    spin_addr->setValue(line_addr->text().toInt(0, 0));
+    spinAddr->setValue(lineAddr->text().toInt(0, 0));
 }
 
 void Window::cmdChanged()
 {
-    table_editor->clearContents();
-    table_editor->setRowCount(0);
+    tableVariables->clearContents();
+    tableVariables->setRowCount(0);
+    comboType->removeItem(comboType->findData(DataTags));
+    comboType->setCurrentIndex(0);
 
-    switch (combo_cmd->currentData().toInt()) {
+    switch (comboCmd->currentData().toInt()) {
         case MicontBusPacket::CMD_GETSIZE:
-            spin_size->setValue(0);
+            spinSize->setValue(0);
             toggleWidgets(dataWidgets, false);
             break;
         case MicontBusPacket::CMD_GETBUF_B:
         case MicontBusPacket::CMD_PUTBUF_B:
-            spin_size->setValue(1);
+            spinSize->setValue(1);
             toggleWidgets(dataWidgets, true);
-            if (combo_cmd->currentData().toInt() == MicontBusPacket::CMD_PUTBUF_B)
+            if (comboCmd->currentData().toInt() == MicontBusPacket::CMD_PUTBUF_B) {
                 fillDataEditor();
+                comboType->insertItem(1, "Tags", DataTags);
+            }
             break;
+    }
+}
+
+void Window::typeChanged()
+{
+    switch (comboType->currentData().toInt()) {
+    case DataRawBytes:
+        tableTags->hide();
+        tableVariables->hide();
+        textRaw->show();
+        break;
+    case DataVariables:
+        textRaw->hide();
+        tableTags->hide();
+        tableVariables->show();
+        break;
+    case DataTags:
+        tableVariables->hide();
+        textRaw->hide();
+        tableTags->show();
+        break;
     }
 }
 
 void Window::fillDataEditor()
 {
-    table_editor->setRowCount(spin_size->value());
-    for (int i = 0; i < spin_size->value(); i++) {
-        table_editor->setItem(i, 0, new QTableWidgetItem(QString("0x%1").arg(spin_addr->value() + i, 4, 16, QLatin1Char('0'))));
-        if (!table_editor->item(i, 1))
-            table_editor->setItem(i, 1, new QTableWidgetItem(QString("0")));
+    tableVariables->setRowCount(spinSize->value());
+    for (int i = 0; i < spinSize->value(); i++) {
+        tableVariables->setItem(i, 0, new QTableWidgetItem(QString("0x%1").arg(spinAddr->value() + i, 4, 16, QLatin1Char('0'))));
+        if (!tableVariables->item(i, 1))
+            tableVariables->setItem(i, 1, new QTableWidgetItem(QString("0")));
     }
 }
 
@@ -396,7 +442,7 @@ void Window::monitorItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previ
     if (current) {
         if (current->type() == QTreeWidgetItem::UserType + 1) {
             QTreeWidgetItem *parentItem = current->parent();
-            QLabel *l = qobject_cast<QLabel *>(tree_monitor->itemWidget(current->parent(), 0));
+            QLabel *l = qobject_cast<QLabel *>(treeMonitor->itemWidget(current->parent(), 0));
 
             QPoint p = current->data(0, Qt::UserRole).toPoint();
             l->setText(bufferToString(parentItem->data(0, Qt::UserRole).toByteArray(), p.x(), p.y()));
@@ -405,7 +451,7 @@ void Window::monitorItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previ
 
     if (previous) {
         if (previous->type() == QTreeWidgetItem::UserType + 1 && previous->parent() != current->parent()) {
-            QLabel *l = qobject_cast<QLabel *>(tree_monitor->itemWidget(previous->parent(), 0));
+            QLabel *l = qobject_cast<QLabel *>(treeMonitor->itemWidget(previous->parent(), 0));
             l->setText(bufferToString(previous->parent()->data(0, Qt::UserRole).toByteArray()));
         }
     }
@@ -414,20 +460,20 @@ void Window::monitorItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previ
 void Window::monitorContextMenu(const QPoint &)
 {
     QMenu *menu = new QMenu;
-    menu->addAction(tr("Clear"), this, SLOT(monitorClear()));
+    menu->addAction(QIcon("icons/trash.svg"), tr("Clear"), this, SLOT(monitorClear()));
     menu->exec(QCursor::pos());
 }
 
 void Window::editorContextMenu(const QPoint &p)
 {
-    QTableWidgetItem *item = table_editor->itemAt(p);
+    QTableWidgetItem *item = tableVariables->itemAt(p);
     if (!item)
         return;
 
     if (item->column() != 1)
         return;
 
-    QMenu *menu = new QMenu;
+    QMenu *menu = new QMenu;    
     menu->addAction(tr("Unsigned Int"), this, SLOT(itemSwitchViewToUInt()));
     menu->addAction(tr("Int"), this, SLOT(itemSwitchViewToInt()));
     menu->addAction(tr("Float"), this, SLOT(itemSwitchViewToFloat()));
@@ -440,17 +486,17 @@ void Window::monitorClear()
 {
     master.statClear();
     updateStatistics();
-    tree_monitor->clear();
+    treeMonitor->clear();
 
-    if (combo_cmd->currentData().toInt() != MicontBusPacket::CMD_PUTBUF_B) {
-        table_editor->clearContents();
-        table_editor->setRowCount(0);
+    if (comboCmd->currentData().toInt() != MicontBusPacket::CMD_PUTBUF_B) {
+        tableVariables->clearContents();
+        tableVariables->setRowCount(0);
     }
 }
 
 void Window::itemSwitchViewToUInt()
 {
-    QTableWidgetItem *item = table_editor->currentItem();
+    QTableWidgetItem *item = tableVariables->currentItem();
     if (!item)
         return;
     item->setText(QString("%1").arg(item->data(Qt::UserRole).toUInt()));
@@ -458,7 +504,7 @@ void Window::itemSwitchViewToUInt()
 
 void Window::itemSwitchViewToInt()
 {
-    QTableWidgetItem *item = table_editor->currentItem();
+    QTableWidgetItem *item = tableVariables->currentItem();
     if (!item)
         return;
     item->setText(QString("%1").arg(item->data(Qt::UserRole).toInt()));
@@ -466,7 +512,7 @@ void Window::itemSwitchViewToInt()
 
 void Window::itemSwitchViewToFloat()
 {
-    QTableWidgetItem *item = table_editor->currentItem();
+    QTableWidgetItem *item = tableVariables->currentItem();
     if (!item)
         return;
     tMicontVar var;
@@ -476,7 +522,7 @@ void Window::itemSwitchViewToFloat()
 
 void Window::itemSwitchViewToHex()
 {
-    QTableWidgetItem *item = table_editor->currentItem();
+    QTableWidgetItem *item = tableVariables->currentItem();
     if (!item)
         return;
     item->setText(QString("0x%1").arg(item->data(Qt::UserRole).toUInt(), 8, 16, QLatin1Char('0')));
@@ -484,7 +530,7 @@ void Window::itemSwitchViewToHex()
 
 void Window::itemSwitchViewToBit()
 {
-    QTableWidgetItem *item = table_editor->currentItem();
+    QTableWidgetItem *item = tableVariables->currentItem();
     if (!item)
         return;
     item->setText(QString("%1").arg(item->data(Qt::UserRole).toUInt(), 32, 2, QLatin1Char('0')));
@@ -499,14 +545,12 @@ void Window::toggleWidgets(const QList<QWidget *> &widgets, bool show)
 
 void Window::setControlsEnabled(bool enable)
 {
-    push_query->setEnabled(enable);
+    pushQuery->setEnabled(enable);
 }
 
 QString Window::bufferToString(const QByteArray &data, int start, int length)
 {
     QString s;
-
-    s.append("<font color=#333333>");
 
     for (int i = 0; i < data.size(); i++) {
         if (length > 0 && i == start)
@@ -516,8 +560,6 @@ QString Window::bufferToString(const QByteArray &data, int start, int length)
         if (length > 0 && i == start + length - 1)
             s.append("</font></b>");
     }
-
-    s.append("</font>");
 
     return s;
 }
@@ -595,20 +637,20 @@ void Window::logPacket(const MicontBusPacket &packet)
     QByteArray rawPacket = packet.serialize();
     item->setData(0, Qt::UserRole, rawPacket);
 
-    tree_monitor->addTopLevelItem(item);
-    tree_monitor->setItemWidget(item, 0, new QLabel(bufferToString(rawPacket)));
-    tree_monitor->scrollToBottom();
+    treeMonitor->addTopLevelItem(item);
+    treeMonitor->setItemWidget(item, 0, new QLabel(bufferToString(rawPacket)));
+    treeMonitor->scrollToBottom();
 
     updateStatistics();
 }
 
 void Window::updateStatistics()
 {
-    label_stat_rx_bytes->setText(QString::number(master.statRxBytes()));
-    label_stat_tx_bytes->setText(QString::number(master.statTxBytes()));
-    label_stat_rx_packets->setText(QString::number(master.statRxPackets()));
-    label_stat_tx_packets->setText(QString::number(master.statTxPackets()));
+    labelStatRxBytes->setText(QString::number(master.statRxBytes()));
+    labelStatTxBytes->setText(QString::number(master.statTxBytes()));
+    labelStatRxPackets->setText(QString::number(master.statRxPackets()));
+    labelStatTxPackets->setText(QString::number(master.statTxPackets()));
     QString color = (master.statCrcErrors() != 0) ? "red" : "black";
-    label_stat_crc_errors->setText("<font color=" + color + ">" + QString::number(master.statCrcErrors()) + "</font>");
-    label_stat_timeouts->setText(QString::number(master.statTimeouts()));
+    labelStatCrcErrors->setText("<font color=" + color + ">" + QString::number(master.statCrcErrors()) + "</font>");
+    labelStatTimeouts->setText(QString::number(master.statTimeouts()));
 }
